@@ -2,6 +2,9 @@ import db from '../../lib/db';
 import { parse } from 'cookie';
 
 export default async function handler(req, res) {
+  // --- ANTI CACHE (PENTING AGAR DATA SELALU UPDATE) ---
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  
   const { method } = req;
 
   // 1. CEK SESSION
@@ -15,20 +18,22 @@ export default async function handler(req, res) {
   const userId = userSession.id;
   const userRole = userSession.role;
 
-  // 2. FUNGSI WAKTU WIB MANUAL (Sangat Aman)
-  // Menghasilkan string 'YYYY-MM-DD' dan 'HH:MM:SS' yang pasti diterima MySQL
+  // 2. FUNGSI WAKTU WIB (SOLUSI JAM)
   const getWIB = () => {
+    // Menggunakan Intl untuk format waktu yang 100% akurat sesuai zona Jakarta
     const now = new Date();
     
-    // Ubah ke UTC+7 (WIB) secara manual
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const wibTimestamp = new Date(utc + (3600000 * 7)); // Tambah 7 Jam
+    // Format: YYYY-MM-DD
+    const date = new Intl.DateTimeFormat('en-CA', { 
+        timeZone: 'Asia/Jakarta', 
+        year: 'numeric', month: '2-digit', day: '2-digit' 
+    }).format(now);
 
-    // Format YYYY-MM-DD
-    const date = wibTimestamp.toISOString().split('T')[0];
-    
-    // Format HH:MM:SS
-    const time = wibTimestamp.toISOString().split('T')[1].split('.')[0];
+    // Format: HH:MM:SS (Pakai hour12: false agar format 24 jam)
+    const time = new Intl.DateTimeFormat('en-GB', { 
+        timeZone: 'Asia/Jakarta', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).format(now);
 
     return { date, time };
   };
@@ -49,6 +54,7 @@ export default async function handler(req, res) {
       const [rows] = await db.execute(query, params);
       res.status(200).json(rows);
     } catch (e) {
+      console.error("Database Error:", e);
       res.status(500).json({ message: 'Gagal ambil data' });
     }
   } 
@@ -56,32 +62,32 @@ export default async function handler(req, res) {
   // --- POST: ABSEN MASUK/PULANG ---
   else if (method === 'POST') {
     const { type } = req.body;
-    const { date: today, time: now } = getWIB(); // Ambil waktu WIB yang sudah pasti benar
+    const { date: today, time: now } = getWIB(); // Pasti WIB
 
     try {
       if (type === 'in') {
-        // Cek Double Login
         const [cek] = await db.execute('SELECT id FROM attendance WHERE user_id = ? AND date = ?', [userId, today]);
-        if (cek.length > 0) return res.status(400).json({ message: 'Sudah absen masuk hari ini!' });
+        if (cek.length > 0) return res.status(400).json({ message: 'Anda sudah absen masuk hari ini!' });
 
-        // Tentukan Status (Contoh: Lewat 08:30 = Terlambat)
+        // Jika jam > 08:30 maka Terlambat
         const status = now > "08:30:00" ? "Terlambat" : "Hadir";
 
         await db.execute(
             'INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)', 
             [userId, today, now, status]
         );
-        res.status(200).json({ message: `Masuk berhasil: ${now}` });
+        res.status(200).json({ message: `Berhasil Masuk jam ${now}` });
 
       } else if (type === 'out') {
         await db.execute(
             'UPDATE attendance SET check_out = ? WHERE user_id = ? AND date = ?', 
             [now, userId, today]
         );
-        res.status(200).json({ message: `Pulang berhasil: ${now}` });
+        res.status(200).json({ message: `Berhasil Pulang jam ${now}` });
       }
     } catch (e) {
-      res.status(500).json({ message: e.message });
+      console.error("Insert Error:", e);
+      res.status(500).json({ message: 'Gagal menyimpan data' });
     }
   } else {
     res.status(405).end();
