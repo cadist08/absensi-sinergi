@@ -4,7 +4,7 @@ import Cookies from 'js-cookie';
 import Layout from '../components/layout'; 
 import { 
   Sun, Moon, LogOut, Loader2, 
-  Users, CheckCircle, Clock, MapPin, List, Calendar
+  Users, CheckCircle, Clock, MapPin, List, Calendar, Filter
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -22,6 +22,18 @@ export default function Dashboard() {
   const [todayDateDisplay, setTodayDateDisplay] = useState('');
   const [processing, setProcessing] = useState(false);
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0 });
+  const [filterDate, setFilterDate] = useState('');
+
+  // --- FUNGSI TOMBOL FILTER CEPAT ---
+  const setFilterToday = () => {
+      setFilterDate(getJakartaDateISO(new Date()));
+  };
+
+  const setFilterYesterday = () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setFilterDate(getJakartaDateISO(yesterday));
+  };
 
   // 1. HELPER: FORMAT TANGGAL JAKARTA (WIB)
   const getJakartaDateISO = (dateInput = new Date()) => {
@@ -119,7 +131,6 @@ export default function Dashboard() {
       const result = await res.json();
       
       if (res.ok) { 
-        // Menggunakan SweetAlert atau Toast bawaan browser (alert biasa dulu)
         alert(result.message); 
         await loadAttendance(user.role); 
       } else { 
@@ -141,6 +152,21 @@ export default function Dashboard() {
     else { document.documentElement.classList.remove('dark'); Cookies.set('theme', 'light', { expires: 365 }); }
   };
 
+  const filteredHistory = attendanceHistory.filter((row) => {
+      if (!filterDate) return true; 
+      return getJakartaDateISO(row.date) === filterDate;
+  });
+
+  // --- HITUNG STATISTIK KARTU SECARA DINAMIS ---
+  const totalHadir = filteredHistory.length;
+  const totalTerlambat = filteredHistory.filter((row) => row.status === 'Terlambat').length;
+  const totalTepatWaktu = totalHadir - totalTerlambat;
+  
+  // Ubah judul kartu agar sesuai dengan filter yang dipilih
+  const labelHadir = filterDate === getJakartaDateISO(new Date()) 
+        ? 'Hadir Hari Ini' 
+        : filterDate ? 'Total Hadir' : 'Semua Kehadiran';
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
   if (!user) return null;
 
@@ -155,7 +181,7 @@ export default function Dashboard() {
     return (
       <Layout>
         <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors pb-10">
-          {/* HEADER */}
+          {/* HEADER ADMIN */}
           <div className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 shadow-sm">
               <div>
                   <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -180,8 +206,8 @@ export default function Dashboard() {
                     <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110">
                         <Users size={80} className="text-indigo-600"/>
                     </div>
-                    <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">Hadir Hari Ini</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{stats.hadir}</p>
+                    <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">{labelHadir}</h3>
+                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalHadir}</p>
                     <div className="mt-4 h-1 w-full bg-indigo-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 w-full"></div></div>
                 </div>
 
@@ -190,7 +216,7 @@ export default function Dashboard() {
                         <CheckCircle size={80} className="text-emerald-500"/>
                     </div>
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">Tepat Waktu</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{stats.hadir - stats.terlambat}</p>
+                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalTepatWaktu}</p>
                     <div className="mt-4 h-1 w-full bg-emerald-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 w-full"></div></div>
                 </div>
 
@@ -199,19 +225,64 @@ export default function Dashboard() {
                         <Clock size={80} className="text-rose-500"/>
                     </div>
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">Terlambat</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{stats.terlambat}</p>
+                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalTerlambat}</p>
                     <div className="mt-4 h-1 w-full bg-rose-100 rounded-full overflow-hidden"><div className="h-full bg-rose-500 w-full"></div></div>
                 </div>
             </div>
 
             {/* TABEL ADMIN */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-               <div className="p-6 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center">
+               {/* TABEL ADMIN DENGAN FILTER */}
+               <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <h3 className="font-bold text-lg text-gray-800 dark:text-white flex items-center gap-2">
                     <List className="text-indigo-500"/> Riwayat Absensi
                   </h3>
-                  <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-medium">{attendanceHistory.length} Data</span>
+                  
+                  {/* BUNGKUSAN FILTER TANGGAL */}
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      {/* TOMBOL CEPAT */}
+                      <div className="flex bg-gray-100 dark:bg-slate-700/50 p-1 rounded-lg">
+                          <button 
+                              onClick={setFilterToday}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${filterDate === getJakartaDateISO(new Date()) ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                          >
+                              Hari Ini
+                          </button>
+                          <button 
+                              onClick={setFilterYesterday}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${filterDate === getJakartaDateISO(new Date(new Date().setDate(new Date().getDate() - 1))) ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                          >
+                              Kemarin
+                          </button>
+                      </div>
+
+                      {/* INPUT KALENDER */}
+                      <div className="relative w-full md:w-auto flex-1">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                              <Calendar size={16} className="text-gray-400"/>
+                          </div>
+                          <input 
+                              type="date" 
+                              value={filterDate}
+                              onChange={(e) => setFilterDate(e.target.value)}
+                              onClick={(e) => e.target.showPicker && e.target.showPicker()} 
+                              className="pl-10 pr-4 py-1.5 w-full border border-gray-200 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white dark:bg-slate-700 dark:text-white cursor-pointer"
+                          />
+                      </div>
+
+                      {/* TOMBOL RESET */}
+                      {filterDate && (
+                          <button onClick={() => setFilterDate('')} className="text-xs text-red-500 hover:text-red-700 font-medium px-3 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg whitespace-nowrap transition">
+                              Reset
+                          </button>
+                      )}
+                      
+                      <span className="hidden md:inline-block text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-lg font-medium whitespace-nowrap">
+                          {filteredHistory.length} Data
+                      </span>
+                  </div>
                </div>
+
                <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                      <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-800 dark:text-white uppercase font-bold text-xs tracking-wider">
@@ -224,7 +295,7 @@ export default function Dashboard() {
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                        {attendanceHistory.map((row) => (
+                        {filteredHistory.map((row) => (
                            <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition">
                               <td className="p-5 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
                               <td className="p-5 whitespace-nowrap">{getJakartaDateISO(row.date)}</td>
@@ -239,8 +310,12 @@ export default function Dashboard() {
                               </td>
                            </tr>
                         ))}
-                        {attendanceHistory.length === 0 && (
-                           <tr><td colSpan="5" className="p-10 text-center text-gray-400 italic">Belum ada data absensi hari ini.</td></tr>
+                        {filteredHistory.length === 0 && (
+                           <tr>
+                             <td colSpan="5" className="p-10 text-center text-gray-400 italic">
+                               {filterDate ? `Tidak ada data absensi untuk tanggal ${filterDate}` : 'Belum ada data absensi hari ini.'}
+                             </td>
+                           </tr>
                         )}
                      </tbody>
                   </table>
@@ -257,7 +332,7 @@ export default function Dashboard() {
     <Layout>
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors pb-10">
         
-        {/* HEADER */}
+        {/* HEADER KARYAWAN */}
         <div className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
             <div>
                  <h1 className="text-xl font-bold text-gray-800 dark:text-white">Halo, {user.name} 👋</h1>
@@ -333,11 +408,52 @@ export default function Dashboard() {
 
             {/* TABEL RIWAYAT */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-                <div className="p-5 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800">
+                <div className="p-4 md:p-5 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
                         <List size={18} className="text-gray-500"/> Riwayat Absensi Saya
                     </h3>
+                    
+                    {/* BUNGKUSAN FILTER TANGGAL */}
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        {/* TOMBOL CEPAT */}
+                        <div className="flex bg-gray-100 dark:bg-slate-700/50 p-1 rounded-lg">
+                            <button 
+                                onClick={setFilterToday}
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${filterDate === getJakartaDateISO(new Date()) ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                            >
+                                Hari Ini
+                            </button>
+                            <button 
+                                onClick={setFilterYesterday}
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${filterDate === getJakartaDateISO(new Date(new Date().setDate(new Date().getDate() - 1))) ? 'bg-white dark:bg-slate-600 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                            >
+                                Kemarin
+                            </button>
+                        </div>
+
+                        {/* INPUT KALENDER */}
+                        <div className="relative w-full md:w-auto flex-1">
+                            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                <Calendar size={16} className="text-gray-400"/>
+                            </div>
+                            <input 
+                                type="date" 
+                                value={filterDate}
+                                onChange={(e) => setFilterDate(e.target.value)}
+                                onClick={(e) => e.target.showPicker && e.target.showPicker()} 
+                                className="pl-10 pr-4 py-1.5 w-full border border-gray-200 dark:border-slate-600 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white dark:bg-slate-700 dark:text-white cursor-pointer"
+                            />
+                        </div>
+
+                        {/* TOMBOL RESET */}
+                        {filterDate && (
+                            <button onClick={() => setFilterDate('')} className="text-xs text-red-500 hover:text-red-700 font-medium px-3 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg whitespace-nowrap transition">
+                                Reset
+                            </button>
+                        )}
+                    </div>
                 </div>
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                        <thead className="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 text-gray-400 uppercase text-xs font-semibold">
@@ -349,7 +465,7 @@ export default function Dashboard() {
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                          {attendanceHistory.map((row) => (
+                          {filteredHistory.map((row) => (
                              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition">
                                 <td className="p-4 pl-6 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                                     {getJakartaDateISO(row.date)}
@@ -366,8 +482,12 @@ export default function Dashboard() {
                                 </td>
                              </tr>
                           ))}
-                          {attendanceHistory.length === 0 && (
-                              <tr><td colSpan="4" className="p-8 text-center text-gray-400 text-sm">Belum ada riwayat absensi.</td></tr>
+                          {filteredHistory.length === 0 && (
+                              <tr>
+                                <td colSpan="4" className="p-8 text-center text-gray-400 text-sm">
+                                  {filterDate ? `Tidak ada data absensi untuk tanggal ${filterDate}` : 'Belum ada riwayat absensi.'}
+                                </td>
+                              </tr>
                           )}
                        </tbody>
                     </table>
