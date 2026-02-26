@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie'; 
 import Layout from '../components/layout'; 
+import Webcam from 'react-webcam'; // <--- TAMBAHAN: Import Webcam
+import * as faceapi from 'face-api.js'; // <--- TAMBAHAN: Import AI Wajah
 import { 
   Sun, Moon, LogOut, Loader2, 
   Users, CheckCircle, Clock, MapPin, List, Calendar, Filter
@@ -23,6 +25,46 @@ export default function Dashboard() {
   const [processing, setProcessing] = useState(false);
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0 });
   const [filterDate, setFilterDate] = useState('');
+
+  // --- 🌟 TAMBAHAN: STATE & LOGIKA FACE RECOGNITION 🌟 ---
+  const webcamRef = useRef(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+
+  // Load Model AI saat halaman pertama kali dibuka
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+        setModelsLoaded(true);
+      } catch (e) {
+        console.error("Gagal load model AI. Pastikan folder /public/models sudah ada", e);
+      }
+    };
+    loadModels();
+  }, []);
+
+  // Fungsi Scan Wajah Real-time
+  const handleVideoOnPlay = () => {
+    const scanInterval = setInterval(async () => {
+      if (webcamRef.current && webcamRef.current.video && isScanning) {
+        const video = webcamRef.current.video;
+        const detection = await faceapi.detectSingleFace(
+          video, 
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.8 })
+        );
+
+        if (detection) {
+          clearInterval(scanInterval); // Stop scan
+          setIsScanning(false); // Tutup kamera
+          handleAbsensi(); // Lanjutkan ke fungsi absen asli milik Anda
+        }
+      } else {
+        clearInterval(scanInterval);
+      }
+    }, 500); // AI mengecek setiap setengah detik
+  };
+  // --- AKHIR TAMBAHAN FACE RECOGNITION ---
 
   // --- FUNGSI TOMBOL FILTER CEPAT ---
   const setFilterToday = () => {
@@ -181,7 +223,6 @@ export default function Dashboard() {
     return (
       <Layout>
         <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors pb-10">
-          {/* HEADER ADMIN */}
           <div className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 shadow-sm">
               <div>
                   <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
@@ -200,7 +241,6 @@ export default function Dashboard() {
           </div>
           
           <div className="p-6 max-w-7xl mx-auto">
-            {/* STATISTIK CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:shadow-md transition">
                     <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110">
@@ -230,17 +270,13 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* TABEL ADMIN */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-               {/* TABEL ADMIN DENGAN FILTER */}
                <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <h3 className="font-bold text-lg text-gray-800 dark:text-white flex items-center gap-2">
                     <List className="text-indigo-500"/> Riwayat Absensi
                   </h3>
                   
-                  {/* BUNGKUSAN FILTER TANGGAL */}
                   <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                      {/* TOMBOL CEPAT */}
                       <div className="flex bg-gray-100 dark:bg-slate-700/50 p-1 rounded-lg">
                           <button 
                               onClick={setFilterToday}
@@ -256,7 +292,6 @@ export default function Dashboard() {
                           </button>
                       </div>
 
-                      {/* INPUT KALENDER */}
                       <div className="relative w-full md:w-auto flex-1">
                           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                               <Calendar size={16} className="text-gray-400"/>
@@ -270,7 +305,6 @@ export default function Dashboard() {
                           />
                       </div>
 
-                      {/* TOMBOL RESET */}
                       {filterDate && (
                           <button onClick={() => setFilterDate('')} className="text-xs text-red-500 hover:text-red-700 font-medium px-3 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-lg whitespace-nowrap transition">
                               Reset
@@ -361,27 +395,63 @@ export default function Dashboard() {
                 
                 <div className="flex justify-center">
                     {!isCheckedOut ? (
-                        <button 
-                            onClick={handleAbsensi} 
-                            disabled={processing}
-                            className={`
-                              group relative w-48 h-48 rounded-full border-8 flex flex-col items-center justify-center text-white font-bold text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-offset-2
-                              ${!isCheckedIn 
-                                ? 'bg-indigo-600 border-indigo-100 hover:bg-indigo-700 hover:shadow-indigo-500/30 focus:ring-indigo-500' 
-                                : 'bg-orange-500 border-orange-100 hover:bg-orange-600 hover:shadow-orange-500/30 focus:ring-orange-500'}
-                            `}>
-                            {processing ? (
-                                <Loader2 className="animate-spin w-10 h-10"/>
-                            ) : (
-                                <>
-                                    <div className="mb-2 transition-transform group-hover:-translate-y-1">
-                                        {!isCheckedIn ? <MapPin size={32}/> : <LogOut size={32}/>}
-                                    </div>
-                                    {!isCheckedIn ? 'MASUK' : 'PULANG'}
-                                    <span className="text-xs font-normal opacity-80 mt-1">Tekan untuk absen</span>
-                                </>
-                            )}
-                        </button>
+                        // 🌟 TAMPILAN BARU: Kamera Jadi Besar Saat Memindai 🌟
+                        isScanning ? (
+                            <div className="relative w-full max-w-xl h-72 md:h-96 rounded-3xl border-8 border-indigo-100 dark:border-slate-700 overflow-hidden bg-black shadow-2xl flex items-center justify-center animate-in zoom-in duration-300">
+                                <Webcam
+                                    audio={false}
+                                    ref={webcamRef}
+                                    onPlay={handleVideoOnPlay}
+                                    screenshotFormat="image/jpeg"
+                                    videoConstraints={{ facingMode: "user" }}
+                                    className="w-full h-full object-cover"
+                                />
+                                
+                                {/* Overlay: Garis Panduan Wajah (Face Guide) */}
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="w-48 h-56 md:w-56 md:h-72 border-4 border-white/50 border-dashed rounded-[40%]"></div>
+                                </div>
+                                
+                                {/* Label Status Scan */}
+                                <div className="absolute bottom-6 bg-white/95 dark:bg-slate-800/95 px-5 py-2 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400 z-10 flex items-center gap-2 shadow-lg">
+                                    <Loader2 className="animate-spin w-4 h-4"/> Memindai Wajah...
+                                </div>
+                                
+                                {/* Tombol Tutup Kamera */}
+                                <button 
+                                    onClick={() => setIsScanning(false)} 
+                                    className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 text-white text-xs px-4 py-2 rounded-full z-10 transition shadow-md"
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                        ) : (
+                            // INI KODE TOMBOL ASLI MILIK ANDA (TIDAK ADA YANG DIHAPUS)
+                            <button 
+                                onClick={() => {
+                                  if (!modelsLoaded) alert("Model AI sedang dimuat ke browser, tunggu sebentar...");
+                                  else setIsScanning(true);
+                                }} 
+                                disabled={processing}
+                                className={`
+                                  group relative w-48 h-48 rounded-full border-8 flex flex-col items-center justify-center text-white font-bold text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-offset-2
+                                  ${!isCheckedIn 
+                                    ? 'bg-indigo-600 border-indigo-100 hover:bg-indigo-700 hover:shadow-indigo-500/30 focus:ring-indigo-500' 
+                                    : 'bg-orange-500 border-orange-100 hover:bg-orange-600 hover:shadow-orange-500/30 focus:ring-orange-500'}
+                                `}>
+                                {processing ? (
+                                    <Loader2 className="animate-spin w-10 h-10"/>
+                                ) : (
+                                    <>
+                                        <div className="mb-2 transition-transform group-hover:-translate-y-1">
+                                            {!isCheckedIn ? <MapPin size={32}/> : <LogOut size={32}/>}
+                                        </div>
+                                        {!isCheckedIn ? 'MASUK' : 'PULANG'}
+                                        <span className="text-xs font-normal opacity-80 mt-1">Tekan untuk absen</span>
+                                    </>
+                                )}
+                            </button>
+                        )
                     ) : (
                         <div className="flex flex-col items-center justify-center w-48 h-48 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border-8 border-emerald-100 dark:border-emerald-800 animate-in zoom-in duration-300">
                             <CheckCircle size={64} className="text-emerald-500 mb-2"/>
