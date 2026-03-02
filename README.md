@@ -1,48 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# 📸 Smart Attendance System with Face Recognition
 
-## Getting Started
+Sistem absensi berbasis web modern yang menggunakan teknologi **Artificial Intelligence (AI)** untuk memverifikasi identitas pengguna melalui pemindaian wajah secara *real-time*. Dibangun menggunakan **Next.js** dan **Face-API.js** dengan integrasi database **MySQL**.
 
-First, run the development server:
+## ✨ Fitur Utama
+
+* **Real-time Face Detection**: Mendeteksi wajah melalui webcam secara instan menggunakan model AI yang ringan.
+* **One-Time Face Enrollment**: Karyawan mendaftarkan wajah mereka hanya sekali, dan data fitur wajah unik (128 descriptor) akan dikunci di database.
+* **Secure Attendance**: Mencegah "titip absen" karena sistem memverifikasi kesesuaian wajah pengguna dengan data yang terdaftar.
+* **Dual Role (Admin & Employee)**: Dashboard khusus untuk Admin guna memantau riwayat absensi dan Dashboard untuk Karyawan melakukan absen.
+* **Dark & Light Mode**: Antarmuka responsif yang mendukung tema gelap dan terang.
+
+## 🧠 Teknologi AI
+
+Proyek ini menggunakan **Face-API.js** yang dibangun di atas **TensorFlow.js** (dikembangkan oleh Google). AI bekerja dengan cara:
+
+1. **Detection**: Mencari wajah manusia menggunakan `SSD Mobilenet v1` atau `Tiny Face Detector`.
+2. **Landmarks**: Memetakan 68 titik unik wajah (mata, hidung, bibir, rahang).
+3. **Recognition**: Mengonversi fitur wajah menjadi **128 Float32 Array (Face Descriptor)** yang unik untuk setiap individu.
+
+## 🔐 Akun Login Default (GitHub Version)
+
+Gunakan kredensial berikut untuk mencoba fitur aplikasi:
+
+| Role | Username | Password |
+| --- | --- | --- |
+| **Admin** | Admin | `1234` |
+| **Karyawan** | Zaen | `123456` |
+
+## 🚀 Getting Started
+
+Pertama, jalankan development server:
 
 ```bash
 npm run dev
-# or
+# atau
 yarn dev
-# or
+# atau
 pnpm dev
-# or
+# atau
 bun dev
+
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) di browser Anda untuk melihat hasilnya.
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+Anda dapat mulai mengedit halaman dengan memodifikasi `pages/index.js`. Halaman akan otomatis diperbarui saat Anda menyimpan perubahan.
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+## 🛠️ Konfigurasi Environment
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+Buat file `.env.local` di root folder dan isi dengan kredensial database MySQL (XAMPP) Anda:
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=nama_database_anda
 
-## Learn More
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 📂 Struktur Penting
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
-
-Login :
-1. Admin
-    Username : Admin
-    Pw : 1234
-2. user
-    Username : Zaen
-    Pw : 123456
+* `/pages/api`: Endpoint API untuk autentikasi dan absensi.
+* `/public/models`: Berisi 7 file model AI (weights & manifests) yang digunakan oleh Face-API.js.
+* `/lib/db.js`: Konfigurasi koneksi database menggunakan `mysql2/promise`.
