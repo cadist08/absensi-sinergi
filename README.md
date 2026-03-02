@@ -24,7 +24,7 @@ Gunakan kredensial berikut untuk mencoba fitur aplikasi:
 
 | Role | Username | Password |
 | --- | --- | --- |
-| **Admin** | Admin | `1234` |
+| **Admin** | Admin | `123456` |
 | **Karyawan** | Zaen | `123456` |
 
 ## 🚀 Getting Started
