@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react'; 
-import { Home, Users, User, Menu, X, LayoutDashboard, ChevronRight } from 'lucide-react'; 
+import { Home, Users, User, Menu, X, LayoutDashboard, ChevronRight, FileText, LogOut } from 'lucide-react'; 
 
 export default function Layout({ children }) {
   const router = useRouter();
@@ -23,6 +23,16 @@ export default function Layout({ children }) {
     };
     checkRole();
   }, []);
+
+  // 🌟 FUNGSI LOGOUT (Dipindah ke Layout agar bisa diakses dari semua halaman)
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout');
+      router.push('/');
+    } catch (error) {
+      console.error("Gagal logout:", error);
+    }
+  };
 
   const isActive = (path) => router.pathname === path;
 
@@ -93,7 +103,6 @@ export default function Layout({ children }) {
             dark:border-slate-800 dark:bg-slate-900
         ">
           <div className="flex items-center w-full">
-             {/* Logo Sedikit Lebih Besar karena tanpa teks */}
              <img 
                 src="/logos.png" 
                 alt="Logo Sinergi" 
@@ -112,27 +121,40 @@ export default function Layout({ children }) {
         {/* MENU LIST */}
         <nav className="flex-1 py-6 space-y-1 overflow-y-auto">
           <div className="px-6 mb-2 text-xs font-bold uppercase tracking-wider
-            text-gray-400 
-            dark:text-slate-500
+            text-gray-400 dark:text-slate-500
           ">Menu Utama</div>
           
           <NavItem href="/dashboard" icon={Home} label="Dashboard" />
           
+          {/* 🌟 MENU IZIN & CUTI 🌟 */}
+          <NavItem href="/izin" icon={FileText} label="Izin & Cuti" />
+          
           {isAdmin && (
             <>
                 <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider
-                    text-gray-400 
-                    dark:text-slate-500
+                    text-gray-400 dark:text-slate-500
                 ">Admin Area</div>
                 <NavItem href="/karyawan" icon={Users} label="Data Karyawan" />
             </>
           )}
 
           <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider
-            text-gray-400 
-            dark:text-slate-500
+            text-gray-400 dark:text-slate-500
           ">Akun</div>
+          
           <NavItem href="/profile" icon={User} label="Profil Saya" />
+
+          {/* 🌟 TOMBOL LOGOUT 🌟 */}
+          <button 
+            onClick={handleLogout}
+            className="w-[calc(100%-2rem)] mx-4 mt-2 group flex items-center justify-start px-4 py-3 rounded-xl transition-all duration-200 font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:text-rose-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+          >
+            <div className="flex items-center gap-3">
+              <LogOut size={20} className="text-rose-400 group-hover:text-rose-600 dark:text-rose-400 dark:group-hover:text-rose-300 transition-colors" />
+              <span>Keluar</span>
+            </div>
+          </button>
+
         </nav>
 
         {/* FOOTER SIDEBAR */}
@@ -141,8 +163,7 @@ export default function Layout({ children }) {
             dark:border-slate-800 dark:bg-slate-900
         ">
             <div className="rounded-xl p-4 flex items-center gap-3
-                bg-gray-50 
-                dark:bg-slate-800/50
+                bg-gray-50 dark:bg-slate-800/50
             ">
                 <div className="p-2 rounded-lg 
                     bg-indigo-100 text-indigo-600

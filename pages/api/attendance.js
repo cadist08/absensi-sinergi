@@ -2,12 +2,9 @@ import db from '../../lib/db';
 import { parse } from 'cookie';
 
 export default async function handler(req, res) {
-  // --- ANTI CACHE (PENTING AGAR DATA SELALU UPDATE) ---
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   
   const { method } = req;
-
-  // 1. CEK SESSION
   const cookies = parse(req.headers.cookie || '');
   const userSession = cookies.user_session ? JSON.parse(cookies.user_session) : null;
 
@@ -18,23 +15,16 @@ export default async function handler(req, res) {
   const userId = userSession.id;
   const userRole = userSession.role;
 
-  // 2. FUNGSI WAKTU WIB (SOLUSI JAM)
   const getWIB = () => {
-    // Menggunakan Intl untuk format waktu yang 100% akurat sesuai zona Jakarta
     const now = new Date();
-    
-    // Format: YYYY-MM-DD
     const date = new Intl.DateTimeFormat('en-CA', { 
         timeZone: 'Asia/Jakarta', 
         year: 'numeric', month: '2-digit', day: '2-digit' 
     }).format(now);
-
-    // Format: HH:MM:SS (Pakai hour12: false agar format 24 jam)
     const time = new Intl.DateTimeFormat('en-GB', { 
         timeZone: 'Asia/Jakarta', 
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     }).format(now);
-
     return { date, time };
   };
 
@@ -45,6 +35,7 @@ export default async function handler(req, res) {
       let params = [];
 
       if (userRole === 'admin') {
+         // Admin melihat semua, termasuk nama dari tabel users
          query = 'SELECT a.*, u.name FROM attendance a JOIN users u ON a.user_id = u.id ORDER BY a.date DESC, a.check_in DESC';
       } else {
          query = 'SELECT * FROM attendance WHERE user_id = ? ORDER BY date DESC, check_in DESC';
@@ -54,7 +45,6 @@ export default async function handler(req, res) {
       const [rows] = await db.execute(query, params);
       res.status(200).json(rows);
     } catch (e) {
-      console.error("Database Error:", e);
       res.status(500).json({ message: 'Gagal ambil data' });
     }
   } 
@@ -62,16 +52,14 @@ export default async function handler(req, res) {
   // --- POST: ABSEN MASUK/PULANG ---
   else if (method === 'POST') {
     const { type } = req.body;
-    const { date: today, time: now } = getWIB(); // Pasti WIB
+    const { date: today, time: now } = getWIB();
 
     try {
       if (type === 'in') {
         const [cek] = await db.execute('SELECT id FROM attendance WHERE user_id = ? AND date = ?', [userId, today]);
-        if (cek.length > 0) return res.status(400).json({ message: 'Anda sudah absen masuk hari ini!' });
+        if (cek.length > 0) return res.status(400).json({ message: 'Anda sudah memiliki catatan kehadiran (Hadir/Izin) hari ini!' });
 
-        // Jika jam > 08:30 maka Terlambat
         const status = now > "08:30:00" ? "Terlambat" : "Hadir";
-
         await db.execute(
             'INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)', 
             [userId, today, now, status]
@@ -80,16 +68,34 @@ export default async function handler(req, res) {
 
       } else if (type === 'out') {
         await db.execute(
-            'UPDATE attendance SET check_out = ? WHERE user_id = ? AND date = ?', 
+            'UPDATE attendance SET check_out = ? WHERE user_id = ? AND date = ? AND check_out IS NULL', 
             [now, userId, today]
         );
         res.status(200).json({ message: `Berhasil Pulang jam ${now}` });
       }
     } catch (e) {
-      console.error("Insert Error:", e);
       res.status(500).json({ message: 'Gagal menyimpan data' });
     }
-  } else {
+  } 
+
+  // --- 🌟 DELETE: HAPUS ABSENSI (KHUSUS ADMIN) 🌟 ---
+  else if (method === 'DELETE') {
+    if (userRole !== 'admin') {
+        return res.status(403).json({ message: 'Hanya Admin yang boleh menghapus data!' });
+    }
+
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ message: 'ID tidak ditemukan' });
+
+    try {
+      await db.execute('DELETE FROM attendance WHERE id = ?', [id]);
+      res.status(200).json({ message: 'Riwayat absensi berhasil dihapus secara permanen' });
+    } catch (e) {
+      res.status(500).json({ message: 'Gagal menghapus data dari database' });
+    }
+  }
+
+  else {
     res.status(405).end();
   }
 }
