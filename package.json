@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@vladmandic/face-api": "^1.7.15",
     "bcrypt": "^6.0.0",
     "cookie": "^1.1.1",
-    "face-api.js": "^0.20.0",
     "framer-motion": "^12.34.3",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.563.0",
