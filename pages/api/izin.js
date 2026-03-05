@@ -24,8 +24,8 @@ export default async function handler(req, res) {
     const diffTime = Math.abs(end - start);
     const jumlahHari = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-    // 🌟 CEK KUOTA JIKA TIPE ADALAH CUTI 🌟
-    if (type === 'Cuti') {
+    // 🌟 CEK KUOTA MENGGUNAKAN .includes() AGAR LEBIH AMAN 🌟
+    if (type.includes('Cuti')) {
         const [userDb] = await db.query('SELECT sisa_cuti FROM users WHERE id = ?', [user_id]);
         const sisaCuti = userDb[0]?.sisa_cuti || 0;
         

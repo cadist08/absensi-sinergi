@@ -1,72 +1,53 @@
 import db from '../../../lib/db';
-import bcrypt from 'bcrypt';      // 1. Import bcrypt untuk hash password
-import { parse } from 'cookie';   // 2. Import cookie untuk cek Admin
+import bcrypt from 'bcrypt';
+import { parse } from 'cookie';
 
 export default async function handler(req, res) {
   const { method } = req;
-  const { id } = req.query; // Mengambil ID user target dari URL
+  const { id } = req.query;
 
-  // --- KEAMANAN: HANYA ADMIN YANG BOLEH AKSES ---
   const cookies = parse(req.headers.cookie || '');
   const userSession = cookies.user_session ? JSON.parse(cookies.user_session) : null;
 
-  // Cek 1: Login?
-  if (!userSession) {
-    return res.status(401).json({ message: 'Unauthorized: Harap login.' });
+  if (!userSession || userSession.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden.' });
   }
 
-  // Cek 2: Role Admin?
-  // Endpoint [id].js ini berbahaya (bisa delete/edit orang lain), jadi wajib Admin.
-  if (userSession.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: Hanya Admin yang boleh mengubah data karyawan lain.' });
-  }
-  // ----------------------------------------------
-
-  // DELETE: Hapus user
+  // --- 1. DELETE: HAPUS KARYAWAN ---
   if (method === 'DELETE') {
     try {
-      // Pencegahan: Jangan sampai Admin menghapus dirinya sendiri
-      if (parseInt(id) === userSession.id) {
-        return res.status(400).json({ message: 'Anda tidak bisa menghapus akun sendiri di sini.' });
-      }
-
+      if (parseInt(id) === userSession.id) return res.status(400).json({ message: 'Tidak bisa hapus akun sendiri.' });
       await db.execute('DELETE FROM users WHERE id = ?', [id]);
       res.status(200).json({ message: 'Karyawan berhasil dihapus' });
     } catch (e) {
-      res.status(500).json({ message: 'Gagal menghapus data: ' + e.message });
+      res.status(500).json({ message: 'Gagal hapus: ' + e.message });
     }
   }
 
-  // UPDATE: Edit user
+  // --- 2. UPDATE: EDIT DATA KARYAWAN ---
   else if (method === 'PUT') {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department_id, position_id, phone, address } = req.body;
 
     try {
       if (password) {
-        // --- JIKA PASSWORD DIUBAH, HASH DULU! ---
-        // Jangan simpan password mentah, nanti database jadi tidak konsisten
-        // (sebagian terenkripsi, sebagian tidak).
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-        
+        // Update dengan password baru + data lengkap (phone & address)
+        const hashedPassword = await bcrypt.hash(password, 10);
         await db.execute(
-          'UPDATE users SET name=?, email=?, password=?, role=? WHERE id=?',
-          [name, email, hashedPassword, role, id]
+          'UPDATE users SET name=?, email=?, password=?, role=?, department_id=?, position_id=?, phone=?, address=? WHERE id=?',
+          [name, email, hashedPassword, role, department_id || null, position_id || null, phone || null, address || null, id]
         );
       } else {
-        // Jika password kosong, update data lain saja (Password lama aman)
+        // Update data lengkap tanpa mengubah password lama
         await db.execute(
-          'UPDATE users SET name=?, email=?, role=? WHERE id=?',
-          [name, email, role, id]
+          'UPDATE users SET name=?, email=?, role=?, department_id=?, position_id=?, phone=?, address=? WHERE id=?',
+          [name, email, role, department_id || null, position_id || null, phone || null, address || null, id]
         );
       }
       res.status(200).json({ message: 'Data karyawan diperbarui' });
     } catch (e) {
       res.status(500).json({ message: 'Gagal update: ' + e.message });
     }
-  } 
-  
-  else {
+  } else {
     res.status(405).end();
   }
 }

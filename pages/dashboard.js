@@ -72,29 +72,45 @@ export default function Dashboard() {
       if (isDetectingRef.current) return; 
 
       const video = webcamRef.current.video;
-      
-      if (video.readyState === 4 && video.videoWidth > 0 && video.videoHeight > 0) {
-          video.width = video.videoWidth;
-          video.height = video.videoHeight;
-
+      if (video.readyState === 4 && video.videoWidth > 0) {
           isDetectingRef.current = true; 
           try {
-              const detection = await faceapi.detectSingleFace(
-                video, 
-                new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.8 })
-              ).withFaceLandmarks().withFaceDescriptor();
+              // 1. Deteksi wajah lengkap dengan Landmarks (titik wajah)
+              // 1. Deteksi wajah lengkap dengan Landmarks
+const detection = await faceapi.detectSingleFace(
+  video, 
+  new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }) 
+).withFaceLandmarks().withFaceDescriptor();
 
-              if (detection) {
-                clearInterval(scanInterval); 
-                setIsScanning(false); 
-                isDetectingRef.current = false; 
-                
-                if (scanMode === 'register') {
-                    handleSaveFaceToDB(detection.descriptor);
-                } else if (scanMode === 'absen') {
-                    handleAbsensi(); 
-                }
-              } else {
+if (detection) {
+  const landmarks = detection.landmarks;
+  const mouth = landmarks.getMouth(); 
+  const nose = landmarks.getNose();
+  const leftEye = landmarks.getLeftEye(); // 🌟 Titik mata kiri
+  const rightEye = landmarks.getRightEye(); // 🌟 Titik mata kanan
+
+  // 1. Cek apakah area mulut dan hidung terbuka (Anti-Masker/Tangan)
+  const isFaceClear = mouth && mouth.length >= 20 && nose && nose.length >= 9;
+
+  // 2. Cek integritas mata (Jika pakai kacamata hitam/frame tebal, landmarks sering terganggu)
+  const isEyesClear = leftEye && leftEye.length >= 6 && rightEye && rightEye.length >= 6;
+
+  // 🌟 KALIBRASI SKOR UNTUK KACAMATA 🌟
+  // Naikkan sedikit ke 0.82 jika ingin kacamata lebih sulit lolos
+  if (!isFaceClear || !isEyesClear || detection.detection.score < 0.82) {
+      alert("⚠️ Mohon lepaskan aksesoris (Kacamata/Masker/Tangan) dan pastikan cahaya terang agar wajah terdeteksi 100%.");
+      isDetectingRef.current = false;
+      return; 
+  }
+
+  // Jika lolos, lanjut absen
+  clearInterval(scanInterval); 
+  setIsScanning(false); 
+  isDetectingRef.current = false; 
+  
+  if (scanMode === 'register') handleSaveFaceToDB(detection.descriptor);
+  else if (scanMode === 'absen') handleAbsensi(); 
+} else {
                 isDetectingRef.current = false; 
               }
           } catch (error) {
@@ -127,7 +143,6 @@ export default function Dashboard() {
     }
   };
 
-  // --- FUNGSI HAPUS ABSENSI (ADMIN) ---
   const deleteAttendance = async (id) => {
     if (!confirm('Hapus riwayat absensi ini secara permanen?')) return;
     try {
@@ -238,15 +253,20 @@ export default function Dashboard() {
       return matchName && matchStart && matchEnd;
   });
 
-  const totalHadir = filteredHistory.length;
+  // 🌟 LOGIKA STATISTIK DINAMIS (ADMIN) - DIPISAHKAN ANTARA HADIR, TEPAT WAKTU, TELAT, IZIN 🌟
+  const totalHadirSemua = filteredHistory.length;
   const totalTerlambat = filteredHistory.filter((row) => row.status === 'Terlambat').length;
-  const totalTepatWaktu = totalHadir - totalTerlambat;
+  const totalIzinSakit = filteredHistory.filter((row) => 
+    row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti')
+  ).length;
+  // Tepat Waktu adalah kehadiran fisik dikurangi keterlambatan
+  const totalTepatWaktu = totalHadirSemua - totalTerlambat - totalIzinSakit;
+
   const labelHadir = filterDate === getJakartaDateISO(new Date()) ? 'Hadir Hari Ini' : filterDate ? 'Total Hadir' : 'Semua Kehadiran';
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
   if (!user) return null;
 
-  // 🌟 LOGIKA TOMBOL ABSEN OTOMATIS BERUBAH JIKA CUTI/SAKIT 🌟
   const isCutiSakit = todayRecord && (todayRecord.status.includes('Sakit') || todayRecord.status.includes('Izin') || todayRecord.status.includes('Cuti'));
   const isCheckedIn = (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-') || isCutiSakit;
   const isCheckedOut = (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-') || isCutiSakit;
@@ -289,11 +309,12 @@ export default function Dashboard() {
           </div>
           
           <div className="p-6 max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* 🌟 STATISTIK 4 KOTAK 🌟 */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:shadow-md transition">
                     <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110"><Users size={80} className="text-indigo-600"/></div>
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">{labelHadir}</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalHadir}</p>
+                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalHadirSemua}</p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:shadow-md transition">
                     <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110"><CheckCircle size={80} className="text-emerald-500"/></div>
@@ -305,10 +326,15 @@ export default function Dashboard() {
                     <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">Terlambat</h3>
                     <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalTerlambat}</p>
                 </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:shadow-md transition">
+                    <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition transform group-hover:scale-110"><FileText size={80} className="text-amber-500"/></div>
+                    <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wider">Izin/Sakit</h3>
+                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalIzinSakit}</p>
+                </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-               <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <h3 className="font-bold text-lg text-gray-800 dark:text-white flex items-center gap-2">
                     <List className="text-indigo-500"/> Rekapitulasi Absensi
                   </h3>
@@ -350,7 +376,6 @@ export default function Dashboard() {
                               <td className="p-5 font-mono text-emerald-600">{row.check_in && row.check_in !== '-' ? row.check_in.substring(0,5) : '-'}</td>
                               <td className="p-5 font-mono text-orange-600">{row.check_out && row.check_out !== '-' ? row.check_out.substring(0,5) : '-'}</td>
                               <td className="p-5">
-                                 {/* 🌟 STATUS BADGE DINAMIS 🌟 */}
                                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 
                                     ${row.status === 'Terlambat' ? 'bg-rose-100 text-rose-600' : 
                                       row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti') ? 'bg-amber-100 text-amber-700' : 
@@ -359,7 +384,6 @@ export default function Dashboard() {
                                  </span>
                               </td>
                               <td className="p-5 text-center">
-                                 {/* 🌟 TOMBOL HAPUS ADMIN 🌟 */}
                                  <button onClick={() => deleteAttendance(row.id)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg transition">
                                      <Trash2 size={16}/>
                                  </button>
@@ -408,18 +432,24 @@ export default function Dashboard() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center gap-6">
-                                <button 
-                                    onClick={() => {
-                                      if (!modelsLoaded) alert("Memuat model...");
-                                      else if (!hasRegisteredFace) alert("Daftarkan wajah dulu!");
-                                      else { setScanMode('absen'); setIsScanning(true); }
-                                    }} 
-                                    disabled={processing}
-                                    className={`group relative w-48 h-48 rounded-full border-8 flex flex-col items-center justify-center text-white font-bold text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 hover:bg-orange-600'}`}>
-                                    {processing ? <Loader2 className="animate-spin w-10 h-10"/> : <><div className="mb-2">{!isCheckedIn ? <MapPin size={32}/> : <LogOut size={32}/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
-                                </button>
-                                {!hasRegisteredFace && (
-                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat..."); else { setScanMode('register'); setIsScanning(true); } }} className="flex items-center gap-2 px-6 py-2 bg-indigo-50 dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-semibold rounded-full hover:bg-indigo-100 transition text-sm shadow-sm"><ScanFace size={18}/> Daftarkan Wajah Baru</button>
+                                {/* 🌟 LOGIKA TOMBOL DAFTAR WAJAH VS ABSEN 🌟 */}
+                                {hasRegisteredFace ? (
+                                  <button 
+                                      onClick={() => {
+                                        if (!modelsLoaded) alert("Memuat model...");
+                                        else { setScanMode('absen'); setIsScanning(true); }
+                                      }} 
+                                      disabled={processing}
+                                      className={`group relative w-48 h-48 rounded-full border-8 flex flex-col items-center justify-center text-white font-bold text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 hover:bg-orange-600'}`}>
+                                      {processing ? <Loader2 className="animate-spin w-10 h-10"/> : <><div className="mb-2">{!isCheckedIn ? <MapPin size={32}/> : <LogOut size={32}/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
+                                  </button>
+                                ) : (
+                                  <button 
+                                      onClick={() => { if (!modelsLoaded) alert("Memuat..."); else { setScanMode('register'); setIsScanning(true); } }} 
+                                      className="w-48 h-48 rounded-full border-8 bg-indigo-500 border-indigo-100 text-white font-bold flex flex-col items-center justify-center shadow-xl hover:bg-indigo-600 transition"
+                                  >
+                                      <ScanFace size={40} className="mb-2"/> <span className="text-sm">DAFTAR WAJAH</span>
+                                  </button>
                                 )}
                             </div>
                         )
@@ -461,7 +491,7 @@ export default function Dashboard() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                        <thead className="bg-white dark:bg-slate-800 border-b text-gray-400 uppercase text-xs font-semibold">
-                          <tr><th className="p-4 pl-6">Tanggal</th><th className="p-4">Masuk</th><th className="p-4">Pulang</th><th className="p-4 pr-6">Status</th></tr>
+                         <tr><th className="p-4 pl-6">Tanggal</th><th className="p-4">Masuk</th><th className="p-4">Pulang</th><th className="p-4 pr-6">Status</th></tr>
                        </thead>
                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                         {filteredHistory.map((row) => (
@@ -479,7 +509,7 @@ export default function Dashboard() {
                               </td>
                             </tr>
                         ))}
-                      </tbody>
+                       </tbody>
                     </table>
                 </div>
             </div>

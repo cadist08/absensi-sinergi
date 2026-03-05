@@ -15,7 +15,7 @@ export default function PengajuanIzin() {
   const [form, setForm] = useState({ type: 'Sakit', start_date: '', end_date: '', reason: '', file_bukti: '' });
   const [fileName, setFileName] = useState('');
   
-  // 🌟 STATE EDIT (MODAL)
+  // State Modal Edit
   const [editModal, setEditModal] = useState({ show: false, data: {} });
 
   const [leaveRequests, setLeaveRequests] = useState([]);
@@ -93,7 +93,6 @@ export default function PengajuanIzin() {
     } catch (error) { alert("Gagal mengirim."); } finally { setProcessing(false); }
   };
 
-  // 🌟 FUNGSI SIMPAN PERUBAHAN (EDIT)
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setProcessing(true);
@@ -181,7 +180,15 @@ export default function PengajuanIzin() {
                    <div className="p-10 flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in duration-300"><CheckCircle size={64} className="text-emerald-500" /><h2 className="text-2xl font-bold text-gray-800 dark:text-white">Berhasil Dikirim!</h2><p className="text-gray-500">Status saat ini: <span className="font-bold text-orange-500">Pending</span>.</p></div>
                 ) : (
                    <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
-                     <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase">Jenis</label><select value={form.type} onChange={(e) => setForm({...form, type: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none font-medium"><option value="Sakit">Sakit</option><option value="Izin">Izin Keperluan Lain</option><option value="Cuti">Cuti Tahunan</option></select></div>
+                     <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase">Jenis</label>
+                        {/* 🌟 PERBAIKAN VALUE DI SINI 🌟 */}
+                        <select value={form.type} onChange={(e) => setForm({...form, type: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none font-medium">
+                            <option value="Sakit">Sakit</option>
+                            <option value="Izin">Izin Keperluan Lain</option>
+                            <option value="Cuti">Cuti Tahunan</option>
+                        </select>
+                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 dark:bg-slate-700/30 p-4 rounded-2xl border border-gray-100 dark:border-slate-700/50">
                         <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Dari Tanggal</label><input type="date" required value={form.start_date} onChange={(e) => setForm({...form, start_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>
                         <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Sampai Tanggal</label><input type="date" required min={form.start_date} value={form.end_date} onChange={(e) => setForm({...form, end_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>
@@ -244,7 +251,6 @@ export default function PengajuanIzin() {
                                 ) : (
                                     row.status === 'Pending' ? (
                                         <div className="flex items-center justify-center gap-2">
-                                            {/* 🌟 TOMBOL EDIT KARYAWAN */}
                                             <button 
                                                 onClick={() => setEditModal({ show: true, data: { ...row, start_date: formatInputDate(row.start_date), end_date: formatInputDate(row.end_date) } })} 
                                                 className="p-1.5 text-blue-500 hover:bg-blue-100 rounded-md transition"
@@ -274,7 +280,15 @@ export default function PengajuanIzin() {
                         <button onClick={() => setEditModal({ show: false, data: {} })} className="text-gray-500 hover:text-rose-500"><X size={20}/></button>
                     </div>
                     <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Jenis Izin</label><select value={editModal.data.type} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, type: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:text-white outline-none text-sm"><option value="Sakit">Sakit</option><option value="Izin">Izin Keperluan Lain</option><option value="Cuti">Cuti Tahunan</option></select></div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase">Jenis Izin</label>
+                            {/* 🌟 PERBAIKAN VALUE DI SINI 🌟 */}
+                            <select value={editModal.data.type} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, type: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:text-white outline-none text-sm">
+                                <option value="Sakit">Sakit</option>
+                                <option value="Izin">Izin Keperluan Lain</option>
+                                <option value="Cuti">Cuti Tahunan</option>
+                            </select>
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Dari</label><input type="date" required value={editModal.data.start_date} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, start_date: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>
                             <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Sampai</label><input type="date" required min={editModal.data.start_date} value={editModal.data.end_date} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, end_date: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>

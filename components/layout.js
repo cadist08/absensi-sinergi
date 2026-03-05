@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react'; 
-import { Home, Users, User, Menu, X, LayoutDashboard, ChevronRight, FileText, LogOut } from 'lucide-react'; 
+import { Home, Users, User, Menu, X, LayoutDashboard, ChevronRight, FileText, LogOut, Banknote, Briefcase } from 'lucide-react'; 
 
 export default function Layout({ children }) {
   const router = useRouter();
@@ -24,7 +24,7 @@ export default function Layout({ children }) {
     checkRole();
   }, []);
 
-  // 🌟 FUNGSI LOGOUT (Dipindah ke Layout agar bisa diakses dari semua halaman)
+  // FUNGSI LOGOUT
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout');
@@ -59,23 +59,13 @@ export default function Layout({ children }) {
     <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950 font-sans text-gray-900 dark:text-gray-100">
       
       {/* --- MOBILE HEADER --- */}
-      <div className="md:hidden fixed top-0 w-full z-50 p-4 flex justify-between items-center shadow-sm backdrop-blur-md border-b
-        bg-white/80 border-gray-200 
-        dark:bg-slate-900/90 dark:border-slate-800
-      ">
+      <div className="md:hidden fixed top-0 w-full z-50 p-4 flex justify-between items-center shadow-sm backdrop-blur-md border-b bg-white/80 border-gray-200 dark:bg-slate-900/90 dark:border-slate-800 print:hidden">
         <div className="flex items-center">
-            {/* LOGO DI HP (Tanpa Teks) */}
-            <img 
-              src="/logos.png" 
-              alt="Logo" 
-              className="h-10 w-auto object-contain" 
-            />
+            <img src="/logos.png" alt="Logo" className="h-10 w-auto object-contain" />
         </div>
         <button 
             onClick={() => setIsSidebarOpen(true)} 
-            className="p-2 rounded-lg transition
-            text-gray-600 hover:bg-gray-100 
-            dark:text-slate-300 dark:hover:bg-slate-800"
+            className="p-2 rounded-lg transition text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           <Menu size={26} />
         </button>
@@ -83,7 +73,7 @@ export default function Layout({ children }) {
 
       {/* --- OVERLAY GELAP --- */}
       <div 
-        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden print:hidden
         ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsSidebarOpen(false)}
       />
@@ -91,60 +81,43 @@ export default function Layout({ children }) {
       {/* --- SIDEBAR --- */}
       <aside className={`
         fixed top-0 left-0 h-full w-72 shadow-2xl z-50 transition-transform duration-300 ease-out border-r flex flex-col
-        bg-white border-gray-200 
-        dark:bg-slate-900 dark:border-slate-800
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-        md:translate-x-0 
+        bg-white border-gray-200 dark:bg-slate-900 dark:border-slate-800 print:hidden
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 
       `}>
         
         {/* HEADER SIDEBAR (Hanya Logo) */}
-        <div className="h-24 flex items-center justify-between px-6 border-b 
-            border-gray-100 bg-white
-            dark:border-slate-800 dark:bg-slate-900
-        ">
+        <div className="h-24 flex items-center justify-between px-6 border-b border-gray-100 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center w-full">
-             <img 
-                src="/logos.png" 
-                alt="Logo Sinergi" 
-                className="h-12 w-auto object-contain" 
-             />
+             <img src="/logos.png" alt="Logo Sinergi" className="h-12 w-auto object-contain" />
           </div>
-          
-          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1 rounded-md
-            text-gray-500 hover:bg-gray-100
-            dark:text-slate-400 dark:hover:bg-slate-800
-          ">
+          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1 rounded-md text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800">
             <X size={20} />
           </button>
         </div>
 
         {/* MENU LIST */}
         <nav className="flex-1 py-6 space-y-1 overflow-y-auto">
-          <div className="px-6 mb-2 text-xs font-bold uppercase tracking-wider
-            text-gray-400 dark:text-slate-500
-          ">Menu Utama</div>
+          <div className="px-6 mb-2 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">Menu Utama</div>
           
           <NavItem href="/dashboard" icon={Home} label="Dashboard" />
-          
-          {/* 🌟 MENU IZIN & CUTI 🌟 */}
           <NavItem href="/izin" icon={FileText} label="Izin & Cuti" />
+          <NavItem href="/penggajian" icon={Banknote} label="Penggajian" />
           
           {isAdmin && (
             <>
-                <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider
-                    text-gray-400 dark:text-slate-500
-                ">Admin Area</div>
+                <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">Admin Area</div>
                 <NavItem href="/karyawan" icon={Users} label="Data Karyawan" />
+                
+                {/* 🌟 MENU MASTER DATA 🌟 */}
+                <NavItem href="/master-data" icon={Briefcase} label="Master Data" />
             </>
           )}
 
-          <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider
-            text-gray-400 dark:text-slate-500
-          ">Akun</div>
+          <div className="mt-6 px-6 mb-2 text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500">Akun</div>
           
           <NavItem href="/profile" icon={User} label="Profil Saya" />
 
-          {/* 🌟 TOMBOL LOGOUT 🌟 */}
+          {/* TOMBOL LOGOUT */}
           <button 
             onClick={handleLogout}
             className="w-[calc(100%-2rem)] mx-4 mt-2 group flex items-center justify-start px-4 py-3 rounded-xl transition-all duration-200 font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:text-rose-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
@@ -158,17 +131,9 @@ export default function Layout({ children }) {
         </nav>
 
         {/* FOOTER SIDEBAR */}
-        <div className="p-4 border-t 
-            border-gray-100 bg-white
-            dark:border-slate-800 dark:bg-slate-900
-        ">
-            <div className="rounded-xl p-4 flex items-center gap-3
-                bg-gray-50 dark:bg-slate-800/50
-            ">
-                <div className="p-2 rounded-lg 
-                    bg-indigo-100 text-indigo-600
-                    dark:bg-indigo-500/20 dark:text-indigo-400
-                ">
+        <div className="p-4 border-t border-gray-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="rounded-xl p-4 flex items-center gap-3 bg-gray-50 dark:bg-slate-800/50">
+                <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400">
                     <LayoutDashboard size={18} />
                 </div>
                 <div>
@@ -181,8 +146,8 @@ export default function Layout({ children }) {
 
       {/* --- KONTEN UTAMA --- */}
       <main className="flex-1 min-h-screen transition-all duration-300 md:ml-72 bg-gray-50 dark:bg-slate-950">
-         <div className="h-20 md:h-0"></div>
-         <div className="p-4 md:p-8 animate-fade-in">
+         <div className="h-20 md:h-0 print:hidden"></div>
+         <div className="p-4 md:p-8 animate-fade-in print:p-0">
             {children}
          </div>
       </main>
