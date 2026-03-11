@@ -1,5 +1,5 @@
 import db from '../../lib/db';
-import { sendEmail } from '../../lib/mailer'; // 🌟 TAMBAHKAN INI
+import { sendEmail } from '../../lib/mailer'; 
 
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
@@ -20,8 +20,9 @@ export default async function handler(req, res) {
 
   if (method === 'PUT') {
     try {
-      const { id, status, type, start_date, end_date, reason, user_id, file_bukti } = req.body;
+      const { id, status, type, duration, start_date, end_date, reason, user_id, file_bukti } = req.body;
 
+      // === SKENARIO 1: ADMIN APPROVE / REJECT ===
       if (status && id && !type) {
         const [leaveData] = await db.query('SELECT l.*, u.name, u.email FROM leaves l JOIN users u ON l.user_id = u.id WHERE l.id = ?', [id]);
         const leave = leaveData[0];
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
 
         await db.query('UPDATE leaves SET status = ? WHERE id = ?', [status, id]);
 
-        // 🌟 TAMBAHKAN: NOTIFIKASI UNTUK USER
+        // Notifikasi User
         try {
             const statusIndo = status === 'Approved' ? 'Disetujui' : 'Ditolak';
             await db.query('INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)', 
@@ -76,12 +77,44 @@ export default async function handler(req, res) {
         return res.status(200).json({ message: 'Status diperbarui!' });
       }
 
+      // === SKENARIO 2: KARYAWAN EDIT DATA (SEBELUM APPROVED) ===
       if (type && id) {
-        await db.query(`UPDATE leaves SET type=?, start_date=?, end_date=?, reason=?, file_bukti=COALESCE(?, file_bukti) WHERE id=? AND status='Pending'`,
-          [type, start_date, end_date, reason, file_bukti || null, id]
+        
+        const start = new Date(start_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+
+        if (start < today) {
+            return res.status(400).json({ message: 'Gagal: Anda tidak dapat mengubah izin ke tanggal yang sudah terlewat.' });
+        }
+
+        const [existingLeaves] = await db.query(
+          `SELECT id FROM leaves WHERE user_id = ? AND id != ? AND status != 'Rejected' 
+           AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))`, 
+          [user_id, id, end_date, start_date, start_date, end_date]
         );
-        return res.status(200).json({ message: 'Data diperbarui!' });
+
+        if (existingLeaves.length > 0) {
+          return res.status(400).json({ message: 'Gagal: Tanggal yang Anda edit bentrok dengan pengajuan lain.' });
+        }
+
+        const [leaveTypeRules] = await db.query('SELECT requires_attachment FROM leave_types WHERE name = ?', [type]);
+        const requiresAttachment = leaveTypeRules[0]?.requires_attachment === 1;
+
+        if (requiresAttachment) {
+            const [oldData] = await db.query('SELECT file_bukti FROM leaves WHERE id = ?', [id]);
+            if (!file_bukti && (!oldData[0] || !oldData[0].file_bukti)) {
+                return res.status(400).json({ message: `Gagal! Jenis pengajuan ${type} WAJIB melampirkan bukti. Silakan upload file.` });
+            }
+        }
+
+        await db.query(
+          `UPDATE leaves SET type=?, duration=?, start_date=?, end_date=?, reason=?, file_bukti=COALESCE(?, file_bukti) WHERE id=? AND status='Pending'`,
+          [type, duration, start_date, end_date, reason, file_bukti || null, id]
+        );
+        return res.status(200).json({ message: 'Data berhasil diperbarui!' });
       }
+      
       return res.status(400).json({ message: 'Parameter tidak lengkap.' });
     } catch (error) { return res.status(500).json({ message: 'Terjadi kesalahan pada database.' }); }
   }
@@ -92,7 +125,7 @@ export default async function handler(req, res) {
       const [targetData] = await db.query('SELECT * FROM leaves WHERE id = ?', [id]);
       const target = targetData[0];
       if (!target) return res.status(404).json({ message: 'Data tidak ditemukan.' });
-      if (role !== 'admin' && target.status !== 'Pending') return res.status(403).json({ message: 'Hanya Admin yang bisa menghapus.' });
+      if (role !== 'admin' && target.status !== 'Pending') return res.status(403).json({ message: 'Hanya Admin yang bisa menghapus data yang sudah diproses.' });
 
       if (target.status === 'Approved') {
         const start = new Date(target.start_date);
@@ -110,12 +143,30 @@ export default async function handler(req, res) {
           }
           await db.query('UPDATE users SET sisa_cuti = sisa_cuti + ? WHERE id = ?', [deduction, target.user_id]);
         }
+        
         const startStr = start.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const endStr = end.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
-        await db.query('DELETE FROM attendance WHERE user_id = ? AND date BETWEEN ? AND ? AND status LIKE ?', [target.user_id, startStr, endStr, `%${target.type}%`]);
+        
+        // 🌟 PERUBAHAN: Logika Hapus Absensi yang Lebih Pintar & Aman
+        const [attRecords] = await db.query(
+            'SELECT id, check_in, check_out FROM attendance WHERE user_id = ? AND date BETWEEN ? AND ? AND status LIKE ?',
+            [target.user_id, startStr, endStr, `%${target.type}%`]
+        );
+
+        for (const att of attRecords) {
+            // Jika karyawan sudah absen masuk atau absen pulang secara manual
+            if (att.check_in !== '-' || att.check_out !== '-') {
+                // JANGAN DIHAPUS, cukup reset statusnya kembali menjadi "Hadir"
+                await db.query('UPDATE attendance SET status = ? WHERE id = ?', ['Hadir', att.id]);
+            } else {
+                // Jika belum absen sama sekali (hanya data sisipan sistem), aman untuk dihapus
+                await db.query('DELETE FROM attendance WHERE id = ?', [att.id]);
+            }
+        }
       }
+      
       await db.query(`DELETE FROM leaves WHERE id = ?`, [id]);
-      return res.status(200).json({ message: 'Berhasil dihapus secara bersih.' });
+      return res.status(200).json({ message: 'Berhasil dihapus.' });
     } catch (error) { return res.status(500).json({ message: 'Gagal menghapus.' }); }
   }
 

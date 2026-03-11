@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import Layout from '../components/layout';
-import { Loader2, Save, User, Lock, Phone, MapPin, Mail } from 'lucide-react'; // 🌟 Tambah ikon Mail
+import { Loader2, Save, User, Lock, Phone, MapPin, Mail } from 'lucide-react'; 
 
 export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(''); // 🌟 State baru untuk Email
+  const [email, setEmail] = useState(''); 
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -29,7 +29,7 @@ export default function Profile() {
           const data = await res.json();
           setUser(data.user);
           setName(data.user.name);
-          setEmail(data.user.email || ''); // 🌟 Isi otomatis dari DB
+          setEmail(data.user.email || ''); 
           setPhone(data.user.phone || '');
           setAddress(data.user.address || '');
         } else { router.push('/login'); }
@@ -44,7 +44,6 @@ export default function Profile() {
     setMessage('');
 
     try {
-      // 🌟 Kirim data email ke API
       const res = await fetch('/api/update', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,7 +79,6 @@ export default function Profile() {
                   <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-3 border rounded-xl dark:bg-slate-900 dark:border-slate-600 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" required />
                 </div>
 
-                {/* 🌟 Kolom Input Email Baru */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2"><span className="flex items-center gap-2"><Mail size={14}/> Alamat Email</span></label>
                   <input type="email" placeholder="nama@email.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border rounded-xl dark:bg-slate-900 dark:border-slate-600 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition" required />

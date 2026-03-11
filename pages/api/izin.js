@@ -1,5 +1,5 @@
 import db from '../../lib/db';
-import { sendEmail } from '../../lib/mailer'; // 🌟 TAMBAHKAN INI
+import { sendEmail } from '../../lib/mailer'; 
 
 export const config = { api: { bodyParser: { sizeLimit: '5mb' } } };
 
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       [user_id, type, start_date, end_date, reason, 'Pending', file_bukti || null, duration]
     );
 
-    // 🌟 TAMBAHKAN: PELATUK NOTIFIKASI UNTUK ADMIN
+    // Kirim Notifikasi & Email
     try {
         const [admins] = await db.query('SELECT id, email FROM users WHERE role = "admin"');
         const [sender] = await db.query('SELECT name FROM users WHERE id = ?', [user_id]);

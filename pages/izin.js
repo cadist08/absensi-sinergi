@@ -20,7 +20,8 @@ export default function PengajuanIzin() {
   const [filterStatus, setFilterStatus] = useState('');
   const [viewImageModal, setViewImageModal] = useState({ show: false, src: '' });
 
-  // 🌟 FITUR BARU: Kalkulator Hari Kerja Otomatis (Abaikan Sabtu & Minggu)
+  const todayDateOnly = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+
   const calculateWorkingDays = (startDate, endDate, duration) => {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
@@ -33,7 +34,6 @@ export default function PengajuanIzin() {
     let currentDate = new Date(start);
     while (currentDate <= end) {
         const dayOfWeek = currentDate.getDay();
-        // 0 = Minggu, 6 = Sabtu
         if (dayOfWeek !== 0 && dayOfWeek !== 6) { count++; }
         currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -86,6 +86,7 @@ export default function PengajuanIzin() {
   };
 
   const selectedLeaveRule = masterLeaveTypes.find(t => t.name === form.type);
+  const selectedEditRule = editModal.show ? masterLeaveTypes.find(t => t.name === editModal.data.type) : null;
 
   const handleFileChange = (e, isEdit = false) => {
     const file = e.target.files[0];
@@ -153,7 +154,17 @@ export default function PengajuanIzin() {
   };
 
   const formatDate = (dateString) => new Date(dateString).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-  const formatInputDate = (dateString) => dateString ? dateString.split('T')[0] : '';
+  
+  // 🌟 PERUBAHAN: Parser Tanggal yang Lebih Aman untuk Input
+  const formatInputDate = (dateString) => {
+      if (!dateString) return '';
+      try {
+          // 'en-CA' otomatis menghasilkan format YYYY-MM-DD
+          return new Date(dateString).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+      } catch (e) {
+          return '';
+      }
+  };
 
   const exportToCSV = () => {
       const filteredData = leaveRequests.filter(row => {
@@ -222,8 +233,8 @@ export default function PengajuanIzin() {
                          </div>
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 dark:bg-slate-700/30 p-4 rounded-2xl border border-gray-100 dark:border-slate-700/50">
-                        <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Dari Tanggal</label><input type="date" required value={form.start_date} onChange={(e) => setForm({...form, start_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>
-                        <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Sampai Tanggal</label><input type="date" required disabled={form.duration === 'half_day'} min={form.start_date} value={form.end_date} onChange={(e) => setForm({...form, end_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm disabled:opacity-50"/></div>
+                        <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Dari Tanggal</label><input type="date" required min={todayDateOnly} value={form.start_date} onChange={(e) => setForm({...form, start_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm"/></div>
+                        <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Calendar size={14}/> Sampai Tanggal</label><input type="date" required disabled={form.duration === 'half_day'} min={form.start_date || todayDateOnly} value={form.end_date} onChange={(e) => setForm({...form, end_date: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none text-sm disabled:opacity-50"/></div>
                      </div>
                      <div className="space-y-2"><label className="text-xs font-bold text-gray-500 uppercase">Alasan Lengkap</label><textarea required rows="3" value={form.reason} onChange={(e) => setForm({...form, reason: e.target.value})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white outline-none resize-none transition focus:ring-2 focus:ring-indigo-500"></textarea></div>
                      <div className="space-y-2">
@@ -239,7 +250,6 @@ export default function PengajuanIzin() {
                         </div>
                      </div>
 
-                     {/* 🌟 FITUR BARU: Tampilan Kalkulator Hari Dinamis */}
                      {form.start_date && form.end_date && (
                         <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl flex items-center justify-between text-indigo-800 dark:text-indigo-300 transition-all animate-in fade-in duration-300">
                             <div className="flex items-center gap-2">
@@ -320,7 +330,10 @@ export default function PengajuanIzin() {
         </div>
 
         {/* MODAL EDIT */}
-        {editModal.show && (
+        {editModal.show && (() => {
+            const selectedEditRule = masterLeaveTypes.find(t => t.name === editModal.data.type);
+            
+            return (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border dark:border-slate-700">
                     <div className="p-4 border-b dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-700/50">
@@ -351,15 +364,53 @@ export default function PengajuanIzin() {
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Dari</label><input type="date" required value={editModal.data.start_date} onChange={(e) => {
-                                const newStart = e.target.value;
-                                const newData = {...editModal.data, start_date: newStart};
-                                if(newData.duration === 'half_day') newData.end_date = newStart;
-                                setEditModal({...editModal, data: newData});
-                            }} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:border-slate-600 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500"/></div>
-                            <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Sampai</label><input type="date" required disabled={editModal.data.duration === 'half_day'} min={editModal.data.start_date} value={editModal.data.end_date} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, end_date: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:border-slate-600 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50"/></div>
+                            {/* 🌟 PERUBAHAN: Aturan logika 'min' agar tanggal masa lalu yang sudah masuk tidak error di UI */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-500 uppercase">Dari</label>
+                                <input type="date" required 
+                                    min={editModal.data.start_date < todayDateOnly ? editModal.data.start_date : todayDateOnly} 
+                                    value={editModal.data.start_date || ''} 
+                                    onChange={(e) => {
+                                        const newStart = e.target.value;
+                                        const newData = {...editModal.data, start_date: newStart};
+                                        if(newData.duration === 'half_day') newData.end_date = newStart;
+                                        setEditModal({...editModal, data: newData});
+                                    }} 
+                                    className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:border-slate-600 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-500 uppercase">Sampai</label>
+                                <input type="date" required disabled={editModal.data.duration === 'half_day'} 
+                                    min={editModal.data.start_date || todayDateOnly} 
+                                    value={editModal.data.end_date || ''} 
+                                    onChange={(e) => setEditModal({...editModal, data: {...editModal.data, end_date: e.target.value}})} 
+                                    className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:border-slate-600 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                />
+                            </div>
                         </div>
                         <div className="space-y-1"><label className="text-xs font-bold text-gray-500 uppercase">Alasan</label><textarea required rows="3" value={editModal.data.reason} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, reason: e.target.value}})} className="w-full p-2.5 rounded-xl border dark:bg-slate-700 dark:border-slate-600 dark:text-white outline-none text-sm resize-none focus:ring-2 focus:ring-blue-500"></textarea></div>
+                        
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+                                Lampiran Bukti
+                                {selectedEditRule?.requires_attachment === 1 ? <span className="text-rose-500 ml-1">(Wajib)</span> : <span className="text-gray-400 ml-1">(Opsional)</span>}
+                            </label>
+                            <div className="relative">
+                                <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileChange(e, true)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                                <div className={`w-full p-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition text-sm ${selectedEditRule?.requires_attachment === 1 && !editModal.data.file_bukti ? 'border-rose-300 bg-rose-50 text-rose-500' : 'border-gray-300 bg-gray-50 dark:bg-slate-700/30 text-gray-500 dark:border-slate-600'}`}>
+                                    <UploadCloud size={18}/>
+                                    <span className="truncate max-w-[250px]">
+                                        {editModal.data.file_bukti && editModal.data.file_bukti.startsWith('data:') 
+                                            ? "File Baru Siap Disimpan" 
+                                            : editModal.data.file_bukti 
+                                                ? "File Lama Sudah Ada (Klik ubah)" 
+                                                : "Pilih File (Maks 5MB)"}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="pt-4 flex gap-3">
                             <button type="button" onClick={() => setEditModal({ show: false, data: {} })} className="flex-1 py-2.5 rounded-xl font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition">Batal</button>
                             <button type="submit" disabled={processing} className="flex-1 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md transition flex items-center justify-center gap-2 disabled:bg-blue-400">{processing ? <Loader2 size={16} className="animate-spin"/> : <><Save size={16}/> Simpan</>}</button>
@@ -367,7 +418,8 @@ export default function PengajuanIzin() {
                     </form>
                 </div>
             </div>
-        )}
+            );
+        })()}
 
         {/* MODAL LIHAT GAMBAR */}
         {viewImageModal.show && (

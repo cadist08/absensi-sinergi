@@ -6,15 +6,25 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const [rows] = await db.query('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 10', [userId]);
+      // Menampilkan 20 notifikasi terbaru
+      const [rows] = await db.query('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [userId]);
       return res.status(200).json(rows);
     } catch (e) { return res.status(500).json({ message: 'Gagal memuat notifikasi' }); }
   }
 
   if (method === 'PUT') {
     try {
-      await db.query('UPDATE notifications SET is_read = TRUE WHERE id = ?', [req.body.id]);
-      return res.status(200).json({ message: 'Read' });
+      const { id } = req.body;
+      
+      if (id === 'all') {
+        // Logika HRIS Profesional: Tandai semua dibaca
+        await db.query('UPDATE notifications SET is_read = TRUE WHERE user_id = ? AND is_read = FALSE', [userId]);
+      } else {
+        // Tandai satu dibaca
+        await db.query('UPDATE notifications SET is_read = TRUE WHERE id = ?', [id]);
+      }
+      
+      return res.status(200).json({ message: 'Berhasil diupdate' });
     } catch (e) { return res.status(500).json({ message: 'Gagal update' }); }
   }
 }

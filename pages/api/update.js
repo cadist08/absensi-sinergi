@@ -1,5 +1,5 @@
 import db from '../../lib/db';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs'; // 🌟 PERUBAHAN: Menggunakan bcryptjs agar aman dari error instalasi
 import { parse, serialize } from 'cookie';
 
 export default async function handler(req, res) {
@@ -11,30 +11,31 @@ export default async function handler(req, res) {
   if (!userSession) return res.status(401).json({ message: 'Unauthorized' });
 
   const myId = userSession.id; 
-  // 🌟 Tambahkan phone dan address dari body
-  const { name, password, phone, address } = req.body;
+  // 🌟 PERUBAHAN: Menangkap 'email' dari request body frontend
+  const { name, email, password, phone, address } = req.body;
 
   try {
     if (password) {
       const salt = 10;
       const hashedPassword = await bcrypt.hash(password, salt);
-      // 🌟 Masukkan phone dan address ke query
+      // 🌟 PERUBAHAN: Memasukkan kolom email ke query UPDATE
       await db.execute(
-        'UPDATE users SET name = ?, password = ?, phone = ?, address = ? WHERE id = ?', 
-        [name, hashedPassword, phone || null, address || null, myId]
+        'UPDATE users SET name = ?, email = ?, password = ?, phone = ?, address = ? WHERE id = ?', 
+        [name, email || null, hashedPassword, phone || null, address || null, myId]
       );
     } else {
-      // 🌟 Masukkan phone dan address ke query tanpa ganti password
+      // 🌟 PERUBAHAN: Memasukkan kolom email ke query UPDATE tanpa password
       await db.execute(
-        'UPDATE users SET name = ?, phone = ?, address = ? WHERE id = ?', 
-        [name, phone || null, address || null, myId]
+        'UPDATE users SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?', 
+        [name, email || null, phone || null, address || null, myId]
       );
     }
 
     const updatedUser = {
         ...userSession,
         name: name,
-        phone: phone,   // 🌟 Update data di session cookie
+        email: email, // 🌟 PERUBAHAN: Memperbarui email di session cookie
+        phone: phone, 
         address: address
     };
 
@@ -50,6 +51,10 @@ export default async function handler(req, res) {
     res.status(200).json({ message: 'Profil berhasil diperbarui', user: updatedUser });
 
   } catch (e) {
+    // 🌟 PERUBAHAN: Menangkap error jika email sudah dipakai user lain
+    if (e.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ message: 'Email tersebut sudah digunakan oleh akun lain.' });
+    }
     res.status(500).json({ message: e.message });
   }
 }

@@ -5,8 +5,8 @@ import Layout from '../components/layout';
 import Webcam from 'react-webcam'; 
 import { 
   Sun, Moon, LogOut, Loader2, 
-  Users, CheckCircle, Clock, MapPin, List, Calendar, ScanFace, FileDown, Trash2, FileText, Bell, X // 🌟 Tambah Bell & X
-} from 'lucide-react';
+  Users, CheckCircle, Clock, MapPin, List, Calendar, ScanFace, FileDown, Trash2, FileText, Bell, X, CheckCheck, Info 
+} from 'lucide-react'; // 🌟 Tambah CheckCheck & Info
 
 export default function Dashboard() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const [todayRecord, setTodayRecord] = useState(null); 
   const [allUsers, setAllUsers] = useState([]); 
   
-  // 🌟 TAMBAHAN STATE NOTIFIKASI
+  // State Notifikasi
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
@@ -48,7 +48,23 @@ export default function Dashboard() {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [hasRegisteredFace, setHasRegisteredFace] = useState(false); 
 
-  // 🌟 TAMBAHAN FUNGSI NOTIFIKASI
+  // 🌟 FUNGSI FORMAT WAKTU PROFESIONAL (Time Ago)
+  const timeAgo = (dateInput) => {
+      if (!dateInput) return '';
+      const date = new Date(dateInput);
+      const now = new Date();
+      const seconds = Math.round((now - date) / 1000);
+      const minutes = Math.round(seconds / 60);
+      const hours = Math.round(minutes / 60);
+      const days = Math.round(hours / 24);
+
+      if (seconds < 60) return 'Baru saja';
+      if (minutes < 60) return `${minutes}m yang lalu`;
+      if (hours < 24) return `${hours}j yang lalu`;
+      if (days === 1) return 'Kemarin';
+      return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  };
+
   const fetchNotif = useCallback(async (uid) => {
     if (!uid) return;
     try {
@@ -57,9 +73,18 @@ export default function Dashboard() {
     } catch (e) { console.error("Gagal load notif"); }
   }, []);
 
+  // 🌟 LOGIKA MARK AS READ (Optimistic Update agar UI terasa instan)
   const markAsRead = async (id) => {
+    // 1. Update UI secara instan (Gacor)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+    // 2. Tembak ke API di belakang layar
     await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-    fetchNotif(user.id);
+  };
+
+  const markAllAsRead = async () => {
+    if (unreadCount === 0) return;
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
+    await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'all', userId: user.id }) });
   };
 
   useEffect(() => {
@@ -205,7 +230,7 @@ export default function Dashboard() {
           const data = await res.json();
           setUser(data.user);
           if (data.user?.face_descriptor) setHasRegisteredFace(true);
-          fetchNotif(data.user.id); // 🌟 Panggil notif saat login
+          fetchNotif(data.user.id);
         } else router.push('/login'); 
       } catch (error) { router.push('/login'); } 
       finally { setLoading(false); }
@@ -257,23 +282,71 @@ export default function Dashboard() {
 
   const labelHadir = filterDate === getJakartaDateISO(new Date()) ? 'Hadir Hari Ini' : filterDate ? 'Total Hadir' : 'Semua Kehadiran';
 
+  // 🌟 KOMPONEN UI NOTIFIKASI GACOR (Bisa dipanggil Admin & User)
+  const NotificationDropdown = () => (
+    <div className="relative">
+      <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-gray-200 transition">
+        <Bell size={20} />
+        {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center animate-bounce font-bold shadow-sm">{unreadCount}</span>}
+      </button>
+
+      {showNotif && (
+        <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden z-[110] animate-in slide-in-from-top-2 duration-200">
+          <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+            <span className="font-bold text-gray-800 dark:text-white flex items-center gap-2">Notifikasi</span>
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                  <button onClick={markAllAsRead} className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1">
+                      <CheckCheck size={14}/> Tandai dibaca
+                  </button>
+              )}
+              <button onClick={() => setShowNotif(false)} className="text-gray-400 hover:text-rose-500 transition"><X size={16}/></button>
+            </div>
+          </div>
+          <div className="max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-700">
+            {notifications.length === 0 ? (
+                <div className="p-10 flex flex-col items-center justify-center text-gray-400">
+                    <Bell size={40} className="mb-3 opacity-20"/>
+                    <span className="text-sm italic">Belum ada notifikasi</span>
+                </div>
+            ) : 
+            notifications.map(n => (
+              <div key={n.id} onClick={() => markAsRead(n.id)} className={`relative p-4 border-b dark:border-slate-700/50 cursor-pointer transition flex gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 ${!n.is_read ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : ''}`}>
+                
+                {/* Indikator Belum Dibaca */}
+                {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>}
+                
+                {/* Ikon Dinamis */}
+                <div className={`mt-1 p-2 rounded-full h-fit flex-shrink-0 ${n.title.toLowerCase().includes('disetujui') ? 'bg-emerald-100 text-emerald-600' : n.title.toLowerCase().includes('ditolak') ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                    {n.title.toLowerCase().includes('disetujui') ? <CheckCircle size={16}/> : n.title.toLowerCase().includes('ditolak') ? <X size={16}/> : <Info size={16}/>}
+                </div>
+                
+                <div className="flex-1 pr-2">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className={`text-sm font-bold leading-tight ${!n.is_read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{n.title}</span>
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2 font-medium">{timeAgo(n.created_at)}</span>
+                  </div>
+                  <p className={`text-xs leading-relaxed line-clamp-2 ${!n.is_read ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>{n.message}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
   if (!user) return null;
 
-  // 🌟 LOGIKA ENTERPRISE HRIS: UI BACA STATUS UNTUK RENDER 'IZIN' 🌟
   const isIzinHalfDay = todayRecord?.status?.includes('(Setengah Hari)');
   const isCutiSakitFull = todayRecord?.status && (todayRecord.status.includes('Sakit') || todayRecord.status.includes('Izin') || todayRecord.status.includes('Cuti')) && !isIzinHalfDay;
 
   const isCheckedIn = (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-') || isCutiSakitFull;
   const isCheckedOut = (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-') || isCutiSakitFull || isIzinHalfDay; 
   
-  const jamMasuk = isCutiSakitFull 
-      ? 'IZIN' 
-      : (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-' ? todayRecord.check_in.substring(0,5) : '--:--');
-  
-  const jamPulang = (isIzinHalfDay || isCutiSakitFull) 
-      ? 'IZIN'
-      : (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-' ? todayRecord.check_out.substring(0,5) : '--:--');
+  const jamMasuk = isCutiSakitFull ? 'IZIN' : (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-' ? todayRecord.check_in.substring(0,5) : '--:--');
+  const jamPulang = (isIzinHalfDay || isCutiSakitFull) ? 'IZIN' : (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-' ? todayRecord.check_out.substring(0,5) : '--:--');
 
   const exportToCSV = () => {
     if (filteredHistory.length === 0) return alert("Tidak ada data untuk diexport!");
@@ -343,31 +416,8 @@ export default function Dashboard() {
                   <p className="text-xs text-gray-500 mt-1">Monitoring Absensi Real-time (WIB)</p>
               </div>
               <div className="flex items-center gap-4 mt-4 md:mt-0">
-                  {/* 🌟 TAMBAHAN LONCENG NOTIFIKASI ADMIN */}
-                  <div className="relative">
-                     <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 transition">
-                        <Bell size={20} />
-                        {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center animate-bounce font-bold">{unreadCount}</span>}
-                     </button>
-                     {showNotif && (
-                        <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden z-[110] animate-in slide-in-from-top-2 duration-200">
-                           <div className="p-4 border-b border-gray-100 dark:border-slate-700 font-bold text-sm text-gray-800 dark:text-white flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50">
-                              <span>Notifikasi</span>
-                              <button onClick={() => setShowNotif(false)}><X size={16}/></button>
-                           </div>
-                           <div className="max-h-80 overflow-y-auto">
-                              {notifications.length === 0 ? <div className="p-10 text-center text-xs text-gray-400 italic">Belum ada notifikasi</div> : 
-                               notifications.map(n => (
-                                 <div key={n.id} onClick={() => markAsRead(n.id)} className={`p-4 border-b dark:border-slate-700/50 cursor-pointer transition ${!n.is_read ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                                    <div className={`text-xs font-bold ${!n.is_read ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-300'}`}>{n.title}</div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{n.message}</div>
-                                 </div>
-                               ))
-                              }
-                           </div>
-                        </div>
-                     )}
-                  </div>
+                  {/* Panggil Komponen Notifikasi Gacor */}
+                  <NotificationDropdown />
 
                   <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-yellow-400 transition">
                     {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -440,31 +490,10 @@ export default function Dashboard() {
                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Calendar size={12}/> {todayDateDisplay}</p>
             </div>
             <div className="flex items-center gap-4">
-                {/* 🌟 TAMBAHAN LONCENG NOTIFIKASI USER */}
-                <div className="relative">
-                   <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-gray-200 transition">
-                      <Bell size={20} />
-                      {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center animate-bounce font-bold">{unreadCount}</span>}
-                   </button>
-                   {showNotif && (
-                      <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden z-[110] animate-in slide-in-from-top-2 duration-200">
-                         <div className="p-4 border-b border-gray-100 dark:border-slate-700 font-bold text-sm text-gray-800 dark:text-white flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/50">
-                            <span>Notifikasi</span>
-                            <button onClick={() => setShowNotif(false)}><X size={16}/></button>
-                         </div>
-                         <div className="max-h-80 overflow-y-auto">
-                            {notifications.length === 0 ? <div className="p-10 text-center text-xs text-gray-400 italic">Belum ada notifikasi</div> : 
-                               notifications.map(n => (
-                                 <div key={n.id} onClick={() => markAsRead(n.id)} className={`p-4 border-b dark:border-slate-700/50 cursor-pointer transition ${!n.is_read ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}`}>
-                                    <div className={`text-xs font-bold ${!n.is_read ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600 dark:text-gray-300'}`}>{n.title}</div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{n.message}</div>
-                                 </div>
-                               ))
-                            }
-                         </div>
-                      </div>
-                   )}
-                </div>
+                
+                {/* Panggil Komponen Notifikasi Gacor */}
+                <NotificationDropdown />
+
                 <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-yellow-400 transition"><Sun size={18} /></button>
             </div>
         </div>
