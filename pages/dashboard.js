@@ -6,7 +6,7 @@ import Webcam from 'react-webcam';
 import { 
   Sun, Moon, LogOut, Loader2, 
   Users, CheckCircle, Clock, MapPin, List, Calendar, ScanFace, FileDown, Trash2, FileText, Bell, X, CheckCheck, Info 
-} from 'lucide-react'; // 🌟 Tambah CheckCheck & Info
+} from 'lucide-react'; 
 
 export default function Dashboard() {
   const router = useRouter();
@@ -14,32 +14,26 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Face API
   const [faceapi, setFaceapi] = useState(null);
 
-  // State Data
   const [attendanceHistory, setAttendanceHistory] = useState([]); 
   const [todayRecord, setTodayRecord] = useState(null); 
   const [allUsers, setAllUsers] = useState([]); 
   
-  // State Notifikasi
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  // State UI
   const [currentTime, setCurrentTime] = useState('');
   const [todayDateDisplay, setTodayDateDisplay] = useState('');
   const [processing, setProcessing] = useState(false);
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0 });
   
-  // Filter Rekapitulasi
   const [filterDate, setFilterDate] = useState(''); 
   const [filterName, setFilterName] = useState(''); 
   const [startDate, setStartDate] = useState('');   
   const [endDate, setEndDate] = useState('');       
 
-  // Logika Webcam
   const webcamRef = useRef(null);
   const isDetectingRef = useRef(false);
   const scanIntervalRef = useRef(null); 
@@ -48,7 +42,6 @@ export default function Dashboard() {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [hasRegisteredFace, setHasRegisteredFace] = useState(false); 
 
-  // 🌟 FUNGSI FORMAT WAKTU PROFESIONAL (Time Ago)
   const timeAgo = (dateInput) => {
       if (!dateInput) return '';
       const date = new Date(dateInput);
@@ -73,11 +66,8 @@ export default function Dashboard() {
     } catch (e) { console.error("Gagal load notif"); }
   }, []);
 
-  // 🌟 LOGIKA MARK AS READ (Optimistic Update agar UI terasa instan)
   const markAsRead = async (id) => {
-    // 1. Update UI secara instan (Gacor)
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
-    // 2. Tembak ke API di belakang layar
     await fetch('/api/notifications', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
   };
 
@@ -282,61 +272,7 @@ export default function Dashboard() {
 
   const labelHadir = filterDate === getJakartaDateISO(new Date()) ? 'Hadir Hari Ini' : filterDate ? 'Total Hadir' : 'Semua Kehadiran';
 
-  // 🌟 KOMPONEN UI NOTIFIKASI GACOR (Bisa dipanggil Admin & User)
-  const NotificationDropdown = () => (
-    <div className="relative">
-      <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-gray-200 transition">
-        <Bell size={20} />
-        {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center animate-bounce font-bold shadow-sm">{unreadCount}</span>}
-      </button>
-
-      {showNotif && (
-        <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden z-[110] animate-in slide-in-from-top-2 duration-200">
-          <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
-            <span className="font-bold text-gray-800 dark:text-white flex items-center gap-2">Notifikasi</span>
-            <div className="flex items-center gap-3">
-              {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1">
-                      <CheckCheck size={14}/> Tandai dibaca
-                  </button>
-              )}
-              <button onClick={() => setShowNotif(false)} className="text-gray-400 hover:text-rose-500 transition"><X size={16}/></button>
-            </div>
-          </div>
-          <div className="max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-700">
-            {notifications.length === 0 ? (
-                <div className="p-10 flex flex-col items-center justify-center text-gray-400">
-                    <Bell size={40} className="mb-3 opacity-20"/>
-                    <span className="text-sm italic">Belum ada notifikasi</span>
-                </div>
-            ) : 
-            notifications.map(n => (
-              <div key={n.id} onClick={() => markAsRead(n.id)} className={`relative p-4 border-b dark:border-slate-700/50 cursor-pointer transition flex gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 ${!n.is_read ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : ''}`}>
-                
-                {/* Indikator Belum Dibaca */}
-                {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>}
-                
-                {/* Ikon Dinamis */}
-                <div className={`mt-1 p-2 rounded-full h-fit flex-shrink-0 ${n.title.toLowerCase().includes('disetujui') ? 'bg-emerald-100 text-emerald-600' : n.title.toLowerCase().includes('ditolak') ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                    {n.title.toLowerCase().includes('disetujui') ? <CheckCircle size={16}/> : n.title.toLowerCase().includes('ditolak') ? <X size={16}/> : <Info size={16}/>}
-                </div>
-                
-                <div className="flex-1 pr-2">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className={`text-sm font-bold leading-tight ${!n.is_read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{n.title}</span>
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2 font-medium">{timeAgo(n.created_at)}</span>
-                  </div>
-                  <p className={`text-xs leading-relaxed line-clamp-2 ${!n.is_read ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>{n.message}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 transition-colors duration-300"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
   if (!user) return null;
 
   const isIzinHalfDay = todayRecord?.status?.includes('(Setengah Hari)');
@@ -378,24 +314,24 @@ export default function Dashboard() {
     const displayCheckOut = (isRowHalf || isRowFull) ? 'IZIN' : (row.check_out && row.check_out !== '-' ? row.check_out.substring(0,5) : '-');
 
     return (
-      <tr className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition">
+      <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
         {user.role === 'admin' && (
             <td className="p-4 md:p-5 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
         )}
-        <td className="p-4 md:p-5 whitespace-nowrap">{getJakartaDateISO(row.date)}</td>
-        <td className="p-4 md:p-5 font-mono text-emerald-600">{displayCheckIn}</td>
-        <td className="p-4 md:p-5 font-mono text-orange-600">{displayCheckOut}</td>
+        <td className="p-4 md:p-5 whitespace-nowrap text-gray-700 dark:text-gray-300">{getJakartaDateISO(row.date)}</td>
+        <td className="p-4 md:p-5 font-mono text-emerald-600 dark:text-emerald-400">{displayCheckIn}</td>
+        <td className="p-4 md:p-5 font-mono text-orange-600 dark:text-orange-400">{displayCheckOut}</td>
         <td className="p-4 md:p-5">
            <span className={`px-2 md:px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 
-              ${row.status === 'Terlambat' ? 'bg-rose-100 text-rose-600' : 
-                (isRowFull || isRowHalf) ? 'bg-amber-100 text-amber-700' : 
-                'bg-emerald-100 text-emerald-600'}`}>
+              ${row.status === 'Terlambat' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 
+                (isRowFull || isRowHalf) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 
+                'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
               {row.status}
            </span>
         </td>
         {user.role === 'admin' && (
           <td className="p-4 md:p-5 text-center">
-             <button onClick={() => deleteAttendance(row.id)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg transition">
+             <button onClick={() => deleteAttendance(row.id)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-500 dark:hover:text-white rounded-lg transition-colors">
                  <Trash2 size={16}/>
              </button>
           </td>
@@ -404,172 +340,233 @@ export default function Dashboard() {
     );
   };
 
-  if (user.role === 'admin') {
-    return (
-      <Layout>
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors pb-10">
-          <div className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 shadow-sm">
-              <div>
-                  <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                    <Users className="text-indigo-600"/> Dashboard Admin
-                  </h1>
-                  <p className="text-xs text-gray-500 mt-1">Monitoring Absensi Real-time (WIB)</p>
-              </div>
-              <div className="flex items-center gap-4 mt-4 md:mt-0">
-                  {/* Panggil Komponen Notifikasi Gacor */}
-                  <NotificationDropdown />
-
-                  <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-yellow-400 transition">
-                    {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-                  </button>
-              </div>
-          </div>
-          
-          <div className="p-6 max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group">
-                    <div className="absolute right-0 top-0 p-4 opacity-10"><Users size={80} className="text-indigo-600"/></div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">{labelHadir}</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalHadirSemua}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group">
-                    <div className="absolute right-0 top-0 p-4 opacity-10"><CheckCircle size={80} className="text-emerald-500"/></div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Tepat Waktu</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalTepatWaktu}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group">
-                    <div className="absolute right-0 top-0 p-4 opacity-10"><Clock size={80} className="text-rose-500"/></div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Terlambat</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalTerlambat}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group">
-                    <div className="absolute right-0 top-0 p-4 opacity-10"><FileText size={80} className="text-amber-500"/></div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Izin/Sakit</h3>
-                    <p className="text-4xl font-bold text-gray-800 dark:text-white mt-2">{totalIzinSakit}</p>
-                </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-                <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white flex items-center gap-2">
-                    <List className="text-indigo-500"/> Rekapitulasi Absensi
-                  </h3>
-                  
-                  <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-slate-700/30 p-2 rounded-xl">
-                      <select value={filterName} onChange={(e) => setFilterName(e.target.value)} className="p-2 w-32 rounded-lg text-sm border dark:bg-slate-800 dark:text-white outline-none"><option value="">Semua</option>{allUsers.map(n => <option key={n} value={n}>{n}</option>)}</select>
-                      <input type="date" value={startDate} onChange={(e) => {setStartDate(e.target.value); setFilterDate('');}} className="p-2 w-32 rounded-lg text-sm border dark:bg-slate-800 dark:text-white outline-none"/>
-                      <input type="date" value={endDate} onChange={(e) => {setEndDate(e.target.value); setFilterDate('');}} className="p-2 w-32 rounded-lg text-sm border dark:bg-slate-800 dark:text-white outline-none"/>
-                      <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition">
-                          <FileDown size={16}/> Export CSV
-                      </button>
-                  </div>
-               </div>
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
-                     <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-800 dark:text-white uppercase font-bold text-xs tracking-wider">
-                        <tr><th className="p-5">Nama</th><th className="p-5">Tanggal</th><th className="p-5">Masuk</th><th className="p-5">Pulang</th><th className="p-5">Status</th><th className="p-5 text-center">Aksi</th></tr>
-                     </thead>
-                     <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                        {filteredHistory.map((row) => <TableRow key={row.id} row={row} />)}
-                     </tbody>
-                  </table>
-               </div>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors pb-10">
-        <div className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+      <div className="min-h-[100dvh] bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-10">
+        
+        {/* HEADER ATAS - Responsif Flex-Wrap */}
+        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 shadow-sm transition-colors duration-300 gap-4 sm:gap-0">
             <div>
-                 <h1 className="text-xl font-bold text-gray-800 dark:text-white">Halo, {user.name} 👋</h1>
-                 <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Calendar size={12}/> {todayDateDisplay}</p>
+                {user.role === 'admin' ? (
+                  <>
+                    <h1 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                      <Users className="text-indigo-600 dark:text-indigo-400 w-5 h-5 md:w-6 md:h-6"/> Dashboard Admin
+                    </h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Monitoring Absensi Real-time (WIB)</p>
+                  </>
+                ) : (
+                  <>
+                    <h1 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white transition-colors">Halo, {user.name} 👋</h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1 transition-colors"><Calendar size={12}/> {todayDateDisplay}</p>
+                  </>
+                )}
             </div>
-            <div className="flex items-center gap-4">
-                
-                {/* Panggil Komponen Notifikasi Gacor */}
-                <NotificationDropdown />
+            
+            <div className="flex items-center justify-end w-full sm:w-auto gap-3">
+                {/* BLOK UI NOTIFIKASI */}
+                <div className="relative z-50">
+                  <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-gray-200 transition-colors">
+                    <Bell size={20} />
+                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center animate-bounce font-bold shadow-sm">{unreadCount}</span>}
+                  </button>
 
-                <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:text-yellow-400 transition"><Sun size={18} /></button>
+                  {showNotif && (
+                    <div className="absolute right-0 mt-3 w-[300px] sm:w-80 md:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden z-[110] animate-in slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                        <span className="font-bold text-gray-800 dark:text-white flex items-center gap-2">Notifikasi</span>
+                        <div className="flex items-center gap-3">
+                          {unreadCount > 0 && (
+                              <button onClick={markAllAsRead} className="text-[10px] sm:text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1 transition-colors">
+                                  <CheckCheck size={14}/> Tandai dibaca
+                              </button>
+                          )}
+                          <button onClick={() => setShowNotif(false)} className="text-gray-400 hover:text-rose-500 transition-colors"><X size={16}/></button>
+                        </div>
+                      </div>
+                      
+                      <div className="max-h-[350px] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 dark:[&::-webkit-scrollbar-track]:bg-slate-800 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600 [&::-webkit-scrollbar-thumb]:rounded-full">
+                        {notifications.length === 0 ? (
+                            <div className="p-10 flex flex-col items-center justify-center text-gray-400">
+                                <Bell size={40} className="mb-3 opacity-20"/>
+                                <span className="text-sm italic">Belum ada notifikasi</span>
+                            </div>
+                        ) : 
+                        notifications.map(n => (
+                          <div key={n.id} onClick={() => markAsRead(n.id)} className={`relative p-4 border-b dark:border-slate-700/50 cursor-pointer transition-colors flex gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 ${!n.is_read ? 'bg-indigo-50/40 dark:bg-indigo-900/20' : ''}`}>
+                            {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-r-full"></div>}
+                            
+                            <div className={`mt-1 p-2 rounded-full h-fit flex-shrink-0 ${n.title.toLowerCase().includes('disetujui') ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : n.title.toLowerCase().includes('ditolak') ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'}`}>
+                                {n.title.toLowerCase().includes('disetujui') ? <CheckCircle size={14}/> : n.title.toLowerCase().includes('ditolak') ? <X size={14}/> : <Info size={14}/>}
+                            </div>
+                            
+                            <div className="flex-1 pr-2">
+                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-1 gap-0.5 sm:gap-0">
+                                <span className={`text-sm font-bold leading-tight ${!n.is_read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{n.title}</span>
+                                <span className="text-[10px] text-gray-400 whitespace-nowrap font-medium">{timeAgo(n.created_at)}</span>
+                              </div>
+                              <p className={`text-xs leading-relaxed line-clamp-2 mt-1 sm:mt-0 ${!n.is_read ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>{n.message}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-yellow-400 transition-colors">
+                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                </button>
             </div>
         </div>
 
-        <div className="p-6 max-w-4xl mx-auto space-y-8">
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-slate-700 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Waktu Indonesia Barat</h2>
-                <div className="text-5xl md:text-7xl font-black text-gray-800 dark:text-white mb-8 font-mono tracking-wider tabular-nums">{currentTime}</div>
-                
-                <div className="flex justify-center flex-col items-center">
-                    {!isCheckedOut ? (
-                        isScanning ? (
-                            <div className="relative w-full max-w-xl h-72 md:h-96 rounded-3xl border-8 border-indigo-100 dark:border-slate-700 overflow-hidden bg-black shadow-2xl flex items-center justify-center animate-in zoom-in duration-300">
-                                <Webcam audio={false} ref={webcamRef} onPlay={handleVideoOnPlay} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "user" }} className="w-full h-full object-cover"/>
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-48 h-56 md:w-56 md:h-72 border-4 border-white/50 border-dashed rounded-[40%]"></div></div>
-                                <div className="absolute bottom-6 bg-white/95 dark:bg-slate-800/95 px-5 py-2 rounded-full text-xs font-bold text-indigo-600 dark:text-indigo-400 z-10 flex items-center gap-2 shadow-lg"><Loader2 className="animate-spin w-4 h-4"/> Memindai...</div>
-                                <button onClick={() => { setIsScanning(false); setScanMode(''); if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); }} className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 text-white text-xs px-4 py-2 rounded-full z-10 transition">Batal</button>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center gap-6">
-                                {hasRegisteredFace ? (
-                                  <button onClick={() => { if (!modelsLoaded) alert("Memuat model..."); else { setScanMode('absen'); setIsScanning(true); } }} disabled={processing} className={`group relative w-48 h-48 rounded-full border-8 flex flex-col items-center justify-center text-white font-bold text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100' : 'bg-orange-500 border-orange-100'}`}>
-                                      {processing ? <Loader2 className="animate-spin w-10 h-10"/> : <><div className="mb-2">{!isCheckedIn ? <MapPin size={32}/> : <LogOut size={32}/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
-                                  </button>
-                                ) : (
-                                  <button onClick={() => { if (!modelsLoaded) alert("Memuat..."); else { setScanMode('register'); setIsScanning(true); } }} className="w-48 h-48 rounded-full border-8 bg-indigo-500 border-indigo-100 text-white font-bold flex flex-col items-center justify-center shadow-xl transition">
-                                      <ScanFace size={40} className="mb-2"/> <span className="text-sm">DAFTAR WAJAH</span>
-                                  </button>
-                                )}
-                            </div>
-                        )
-                    ) : (
-                        <div className="flex flex-col items-center justify-center w-48 h-48 rounded-full bg-emerald-50 border-8 border-emerald-100 animate-in zoom-in duration-300">
-                            {isCutiSakitFull ? (
-                                <><FileText size={48} className="text-amber-500 mb-2"/><div className="font-bold text-amber-700 text-center">Sedang Izin<br/>(Seharian)</div></>
-                            ) : isIzinHalfDay ? (
-                                <><LogOut size={48} className="text-orange-500 mb-2"/><div className="font-bold text-orange-700 text-center">Selesai<br/>(Izin Setengah Hari)</div></>
-                            ) : (
-                                <><CheckCircle size={64} className="text-emerald-500 mb-2"/><div className="font-bold text-xl text-emerald-700">Selesai</div></>
-                            )}
-                        </div>
-                    )}
-                    {!isCheckedIn && !isScanning && (
-                        <button onClick={() => router.push('/izin')} className="mt-8 flex items-center gap-2 text-sm font-semibold text-gray-500 bg-gray-50 px-4 py-2 rounded-xl border"><FileText size={16}/> Tidak hadir? Ajukan Izin / Cuti</button>
-                    )}
-                </div>
-            </div>
+        {/* --- KONTEN BERDASARKAN ROLE --- */}
+        {user.role === 'admin' ? (
+            <div className="p-4 md:p-6 max-w-7xl mx-auto">
+              {/* GRID STATISTIK - Responsif HP, Tablet, Desktop */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+                  <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><Users size={60} className="text-indigo-600 dark:text-indigo-400 md:w-20 md:h-20"/></div>
+                      <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">{labelHadir}</h3>
+                      <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalHadirSemua}</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CheckCircle size={60} className="text-emerald-500 dark:text-emerald-400 md:w-20 md:h-20"/></div>
+                      <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">Tepat Waktu</h3>
+                      <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalTepatWaktu}</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><Clock size={60} className="text-rose-500 dark:text-rose-400 md:w-20 md:h-20"/></div>
+                      <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">Terlambat</h3>
+                      <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalTerlambat}</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><FileText size={60} className="text-amber-500 dark:text-amber-400 md:w-20 md:h-20"/></div>
+                      <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">Izin/Sakit</h3>
+                      <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalIzinSakit}</p>
+                  </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border flex flex-col items-center justify-center gap-2"><span className="p-3 bg-indigo-50 dark:bg-slate-700 rounded-full text-indigo-600"><Clock size={24} /></span><span className="text-gray-400 text-xs uppercase font-semibold">Jam Masuk</span><div className="text-2xl font-bold text-gray-800 font-mono">{jamMasuk}</div></div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border flex flex-col items-center justify-center gap-2"><span className="p-3 bg-orange-50 dark:bg-slate-700 rounded-full text-orange-600"><LogOut size={24} /></span><span className="text-gray-400 text-xs uppercase font-semibold">Jam Pulang</span><div className="text-2xl font-bold text-gray-800 font-mono">{jamPulang}</div></div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-                <div className="p-4 md:p-5 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><List size={18} className="text-gray-500"/> Riwayat Absensi Saya</h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex bg-gray-100 p-1 rounded-lg">
-                            <button onClick={setFilterToday} className={`px-3 py-1.5 text-xs font-semibold rounded-md ${filterDate === getJakartaDateISO(new Date()) ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>Hari Ini</button>
-                            <button onClick={setFilterYesterday} className={`px-3 py-1.5 text-xs font-semibold rounded-md ${filterDate === getJakartaDateISO(new Date(new Date().setDate(new Date().getDate() - 1))) ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>Kemarin</button>
-                        </div>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
+                  <div className="p-4 md:p-6 border-b border-gray-100 dark:border-slate-700 flex flex-col lg:flex-row justify-between lg:items-center gap-4 bg-white dark:bg-slate-800">
+                    <h3 className="font-bold text-lg text-gray-800 dark:text-white flex items-center gap-2">
+                      <List className="text-indigo-500 dark:text-indigo-400"/> Rekapitulasi Absensi
+                    </h3>
+                    
+                    {/* FILTER ADMIN - Memanjang di HP */}
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 md:gap-3 bg-gray-50 dark:bg-slate-900/50 p-2 rounded-xl border border-gray-100 dark:border-slate-700">
+                        <select value={filterName} onChange={(e) => setFilterName(e.target.value)} className="p-2.5 sm:p-2 w-full sm:w-32 rounded-lg text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"><option value="">Semua Nama</option>{allUsers.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                        <input type="date" value={startDate} onChange={(e) => {setStartDate(e.target.value); setFilterDate('');}} className="p-2.5 sm:p-2 w-full sm:w-32 rounded-lg text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"/>
+                        <input type="date" value={endDate} onChange={(e) => {setEndDate(e.target.value); setFilterDate('');}} className="p-2.5 sm:p-2 w-full sm:w-32 rounded-lg text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"/>
+                        <button onClick={exportToCSV} className="w-full sm:w-auto flex justify-center items-center gap-2 px-4 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm">
+                            <FileDown size={16}/> Export CSV
+                        </button>
                     </div>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-600">
-                       <thead className="bg-white border-b text-gray-400 uppercase text-xs font-semibold">
-                         <tr><th className="p-4 pl-6">Tanggal</th><th className="p-4">Masuk</th><th className="p-4">Pulang</th><th className="p-4 pr-6">Status</th></tr>
+                 </div>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                       <thead className="bg-gray-50 dark:bg-slate-900/50 text-gray-800 dark:text-gray-200 uppercase font-bold text-[10px] md:text-xs tracking-wider border-b border-gray-200 dark:border-slate-700">
+                          <tr><th className="p-4 md:p-5 whitespace-nowrap">Nama</th><th className="p-4 md:p-5 whitespace-nowrap">Tanggal</th><th className="p-4 md:p-5">Masuk</th><th className="p-4 md:p-5">Pulang</th><th className="p-4 md:p-5">Status</th><th className="p-4 md:p-5 text-center">Aksi</th></tr>
                        </thead>
-                       <tbody className="divide-y divide-gray-100">
-                        {filteredHistory.map((row) => <TableRow key={row.id} row={row} />)}
+                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                          {filteredHistory.map((row) => <TableRow key={row.id} row={row} />)}
+                          {filteredHistory.length === 0 && (<tr><td colSpan="6" className="p-10 text-center text-gray-400 italic">Data absensi tidak ditemukan.</td></tr>)}
                        </tbody>
                     </table>
-                </div>
+                 </div>
+              </div>
             </div>
-        </div>
+        ) : (
+            <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 md:space-y-8">
+              {/* KARTU JAM & WEBCAM */}
+              <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 text-center relative overflow-hidden transition-colors duration-300">
+                  <div className="absolute top-0 left-0 w-full h-1 md:h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                  <h2 className="text-xs md:text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 md:mb-4 transition-colors">Waktu Indonesia Barat</h2>
+                  <div className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-800 dark:text-white mb-6 md:mb-8 font-mono tracking-wider tabular-nums transition-colors">{currentTime}</div>
+                  
+                  <div className="flex justify-center flex-col items-center w-full">
+                      {!isCheckedOut ? (
+                          isScanning ? (
+                              <div className="relative w-full max-w-xl aspect-[3/4] sm:aspect-square md:aspect-video rounded-2xl md:rounded-3xl border-4 md:border-8 border-indigo-100 dark:border-slate-700 overflow-hidden bg-black shadow-2xl flex items-center justify-center animate-in zoom-in duration-300">
+                                  <Webcam audio={false} ref={webcamRef} onPlay={handleVideoOnPlay} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "user" }} className="w-full h-full object-cover"/>
+                                  
+                                  {/* Ring Pemindai Adaptif HP */}
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <div className="w-[60%] h-[50%] md:w-56 md:h-72 border-2 md:border-4 border-white/60 border-dashed rounded-[40%] animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.5)]"></div>
+                                  </div>
+                                  
+                                  <div className="absolute bottom-4 md:bottom-6 bg-white/95 dark:bg-slate-800/95 px-4 md:px-5 py-2 rounded-full text-[10px] md:text-xs font-bold text-indigo-600 dark:text-indigo-400 z-10 flex items-center gap-2 shadow-lg backdrop-blur-sm border border-gray-200 dark:border-slate-600"><Loader2 className="animate-spin w-3 h-3 md:w-4 md:h-4"/> Memindai Wajah...</div>
+                                  <button onClick={() => { setIsScanning(false); setScanMode(''); if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); }} className="absolute top-3 right-3 md:top-4 md:right-4 bg-rose-500/90 hover:bg-rose-600 text-white text-[10px] md:text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full z-10 transition-colors backdrop-blur-sm shadow-md">Batal</button>
+                              </div>
+                          ) : (
+                              <div className="flex flex-col items-center gap-4 md:gap-6">
+                                  {hasRegisteredFace ? (
+                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat model AI, harap tunggu..."); else { setScanMode('absen'); setIsScanning(true); } }} disabled={processing} className={`group relative w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 flex flex-col items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 dark:border-orange-900/50 hover:bg-orange-600'}`}>
+                                        {processing ? <Loader2 className="animate-spin w-8 h-8 md:w-10 md:h-10"/> : <><div className="mb-1 md:mb-2 group-hover:-translate-y-1 transition-transform">{!isCheckedIn ? <MapPin className="w-6 h-6 md:w-8 md:h-8"/> : <LogOut className="w-6 h-6 md:w-8 md:h-8"/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat model AI, harap tunggu..."); else { setScanMode('register'); setIsScanning(true); } }} className="w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 bg-indigo-500 border-indigo-100 dark:border-indigo-900/50 text-white font-bold flex flex-col items-center justify-center shadow-xl transition-all hover:scale-105 hover:bg-indigo-600 group">
+                                        <ScanFace className="w-8 h-8 md:w-10 md:h-10 mb-1 md:mb-2 group-hover:rotate-12 transition-transform"/> <span className="text-xs md:text-sm">DAFTAR WAJAH</span>
+                                    </button>
+                                  )}
+                              </div>
+                          )
+                      ) : (
+                          <div className="flex flex-col items-center justify-center w-36 h-36 md:w-48 md:h-48 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border-[6px] md:border-8 border-emerald-100 dark:border-emerald-900/50 animate-in zoom-in duration-300 shadow-lg">
+                              {isCutiSakitFull ? (
+                                  <><FileText className="w-10 h-10 md:w-12 md:h-12 text-amber-500 dark:text-amber-400 mb-1 md:mb-2"/><div className="font-bold text-amber-700 dark:text-amber-400 text-center leading-tight text-xs md:text-base">Sedang Izin<br/>(Seharian)</div></>
+                              ) : isIzinHalfDay ? (
+                                  <><LogOut className="w-10 h-10 md:w-12 md:h-12 text-orange-500 dark:text-orange-400 mb-1 md:mb-2"/><div className="font-bold text-orange-700 dark:text-orange-400 text-center leading-tight text-xs md:text-base">Selesai<br/><span className="text-[10px] md:text-xs font-normal">(Setengah Hari)</span></div></>
+                              ) : (
+                                  <><CheckCircle className="w-12 h-12 md:w-16 md:h-16 text-emerald-500 dark:text-emerald-400 mb-1 md:mb-2"/><div className="font-bold text-lg md:text-xl text-emerald-700 dark:text-emerald-400">Selesai</div></>
+                              )}
+                          </div>
+                      )}
+                      
+                      {/* Tombol Ajukan Izin - Lebar Penuh di HP */}
+                      {!isCheckedIn && !isScanning && (
+                          <button onClick={() => router.push('/izin')} className="mt-6 md:mt-8 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 px-5 py-3 md:py-2.5 rounded-full border border-gray-200 dark:border-slate-700 transition-colors shadow-sm w-full max-w-xs"><FileText size={16}/> Tidak hadir? Ajukan Izin</button>
+                      )}
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center gap-1.5 md:gap-2 group">
+                    <span className="p-2.5 md:p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-full text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform"><Clock className="w-5 h-5 md:w-6 md:h-6" /></span>
+                    <span className="text-gray-400 dark:text-gray-500 text-[10px] md:text-xs uppercase font-semibold tracking-wider text-center">Jam Masuk</span>
+                    <div className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white font-mono">{jamMasuk}</div>
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center gap-1.5 md:gap-2 group">
+                    <span className="p-2.5 md:p-3 bg-orange-50 dark:bg-orange-900/30 rounded-full text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform"><LogOut className="w-5 h-5 md:w-6 md:h-6" /></span>
+                    <span className="text-gray-400 dark:text-gray-500 text-[10px] md:text-xs uppercase font-semibold tracking-wider text-center">Jam Pulang</span>
+                    <div className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white font-mono">{jamPulang}</div>
+                  </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
+                  <div className="p-4 md:p-5 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <h3 className="font-bold text-base md:text-lg text-gray-800 dark:text-white flex items-center gap-2"><List className="w-4 h-4 md:w-5 md:h-5 text-indigo-500 dark:text-indigo-400"/> Riwayat Absensi</h3>
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                          <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-lg border border-gray-200 dark:border-slate-700 w-full sm:w-auto">
+                              <button onClick={setFilterToday} className={`flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-md transition-all ${filterDate === getJakartaDateISO(new Date()) ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Hari Ini</button>
+                              <button onClick={setFilterYesterday} className={`flex-1 sm:flex-none px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-md transition-all ${filterDate === getJakartaDateISO(new Date(new Date().setDate(new Date().getDate() - 1))) ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Kemarin</button>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                         <thead className="bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700 text-gray-500 dark:text-gray-400 uppercase text-[10px] md:text-xs font-semibold tracking-wider">
+                           <tr><th className="p-4 whitespace-nowrap">Tanggal</th><th className="p-4">Masuk</th><th className="p-4">Pulang</th><th className="p-4">Status</th></tr>
+                         </thead>
+                         <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                          {filteredHistory.map((row) => <TableRow key={row.id} row={row} />)}
+                          {filteredHistory.length === 0 && (<tr><td colSpan="4" className="p-10 text-center text-gray-400 italic">Belum ada riwayat absensi.</td></tr>)}
+                         </tbody>
+                      </table>
+                  </div>
+              </div>
+            </div>
+        )}
+
       </div>
     </Layout>
   );

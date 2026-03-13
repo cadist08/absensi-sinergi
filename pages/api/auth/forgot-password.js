@@ -1,6 +1,6 @@
 import db from '../../../lib/db';
 import { sendEmail } from '../../../lib/mailer';
-import crypto from 'crypto'; // Library bawaan Node.js untuk membuat token
+import crypto from 'crypto'; 
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
@@ -17,22 +17,27 @@ export default async function handler(req, res) {
         // BUAT TOKEN ACAK (Berlaku sebagai kunci sementara)
         const token = crypto.randomBytes(32).toString('hex');
         
-        // Simpan token ke database (Pastikan tabel users punya kolom 'reset_token')
-        // Jika belum ada kolomnya, jalankan: ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);
+        // Simpan token ke database 
         await db.query('UPDATE users SET reset_token = ? WHERE email = ?', [token, email]);
 
         const resetLink = `http://localhost:3000/reset-password?token=${token}&email=${email}`;
 
         const subject = 'Reset Password - HRIS Sinergi';
-        const htmlContent = `
-            <h1>Permintaan Reset Password</h1>
-            <p>Halo ${users[0].name},</p>
-            <p>Klik tombol di bawah ini untuk membuat password baru Anda:</p>
-            <a href="${resetLink}" style="padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px;">Reset Password Sekarang</a>
-            <p>Link ini hanya berlaku untuk satu kali penggunaan.</p>
-        `;
+        
+        // 🌟 PERUBAHAN: Mengubah format pesan menjadi Plain Text murni yang profesional
+        const textContent = `Halo ${users[0].name},
 
-        await sendEmail(email, subject, htmlContent);
+Kami menerima permintaan untuk mereset password akun HRIS Sinergi Anda.
+
+Silakan salin dan buka link di bawah ini pada browser Anda untuk membuat password baru:
+${resetLink}
+
+*Catatan: Link ini hanya berlaku untuk satu kali penggunaan. Jika Anda tidak merasa meminta reset password, silakan abaikan email ini. Keamanan akun Anda tetap terjamin.
+
+Salam hangat,
+Tim HRIS Sinergi`;
+
+        await sendEmail(email, subject, textContent);
 
         return res.status(200).json({ message: 'Berhasil' });
     } catch (error) {
