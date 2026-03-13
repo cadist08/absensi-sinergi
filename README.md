@@ -112,11 +112,3 @@ Gunakan akun berikut untuk menguji coba fitur aplikasi di lingkungan *developmen
 ---
 
 *Dibuat dengan ❤️ untuk merevolusi sistem absensi perusahaan yang lebih cerdas dan aman.*
-
-```
-
-### Beberapa Tips Tambahan:
-1.  **Ganti URL:** Pastikan Anda mengganti bagian `https://github.com/username-anda/nama-repo-anda.git` dengan link repositori asli Anda.
-2.  **Gambar / Screenshot:** Jika Anda bisa meletakkan 1 atau 2 *screenshot* (tangkapan layar) aplikasi (misalnya halaman Dashboard Admin atau layar Absensi Wajah) di folder `/public/images` dan memanggilnya di bawah bagian Header README, tampilannya akan **10 kali lipat lebih profesional**. Penguji/Recruiter sangat menyukai *visual preview*.
-
-```
