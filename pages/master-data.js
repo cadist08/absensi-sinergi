@@ -14,7 +14,8 @@ export default function MasterData() {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [processing, setProcessing] = useState(false);
-  const [form, setForm] = useState({ name: '', salary: 0, allowance: 0 });
+  // Default diubah jadi string kosong agar mudah dihapus dengan backspace
+  const [form, setForm] = useState({ name: '', salary: '', allowance: '' });
   const [editModal, setEditModal] = useState({ show: false, data: {} });
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function MasterData() {
 
   useEffect(() => { 
       if (user) {
-          setForm({ name: '', salary: 0, allowance: 0 });
+          setForm({ name: '', salary: '', allowance: '' });
           setSearchTerm('');
           fetchData(activeTab); 
       }
@@ -52,15 +53,44 @@ export default function MasterData() {
 
   const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
 
+  // 🌟 FUNGSI BARU: Format Ribuan untuk tampilan input
+  const formatInputCurrency = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  // 🌟 FUNGSI BARU: Menangani Input Form Tambah
+  const handleCurrencyChange = (e, field) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, ''); 
+    setForm({ ...form, [field]: rawValue ? parseInt(rawValue, 10) : '' });
+  };
+
+  // 🌟 FUNGSI BARU: Menangani Input Form Edit
+  const handleEditCurrencyChange = (e, field) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, ''); 
+    setEditModal({ 
+        ...editModal, 
+        data: { ...editModal.data, [field]: rawValue ? parseInt(rawValue, 10) : '' } 
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setProcessing(true);
+    
+    // Pastikan string kosong berubah menjadi 0 sebelum dikirim ke DB
+    const payload = {
+        ...form,
+        salary: Number(form.salary) || 0,
+        allowance: Number(form.allowance) || 0
+    };
+
     try {
       const res = await fetch(`/api/master?type=${activeTab}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       if (res.ok) {
-        setForm({ name: '', salary: 0, allowance: 0 });
+        setForm({ name: '', salary: '', allowance: '' });
         fetchData(activeTab);
       } else {
         const result = await res.json(); alert(result.message);
@@ -71,9 +101,17 @@ export default function MasterData() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     setProcessing(true);
+
+    // Pastikan data valid
+    const payload = {
+        ...editModal.data,
+        salary: Number(editModal.data.salary) || 0,
+        allowance: Number(editModal.data.allowance) || 0
+    };
+
     try {
       const res = await fetch(`/api/master?type=${activeTab}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editModal.data)
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       if (res.ok) {
         setEditModal({ show: false, data: {} });
@@ -108,7 +146,6 @@ export default function MasterData() {
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-10 py-6 px-4 transition-colors duration-300">
         <div className="max-w-7xl mx-auto space-y-6">
           
-          {/* 🌟 PERBAIKAN UI: Tombol Kembali yang Interaktif */}
           <button 
              onClick={() => router.push('/dashboard')} 
              className="group flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-sm hover:shadow-md transition-all hover:-translate-x-1 w-fit"
@@ -120,7 +157,6 @@ export default function MasterData() {
           <div className="flex flex-col lg:flex-row gap-8">
               {/* KOLOM KIRI: FORM TAMBAH */}
               <div className="w-full lg:w-1/3 space-y-6">
-                 {/* 🌟 PERBAIKAN UI: Switch Tab Modern */}
                  <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl shadow-sm border border-gray-200 dark:border-slate-700 flex gap-2 transition-colors">
                      <button 
                         onClick={() => setActiveTab('position')} 
@@ -136,7 +172,7 @@ export default function MasterData() {
                      </button>
                  </div>
 
-                 {/* FORM INPUT */}
+                 {/* FORM INPUT TAMBAH */}
                  <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden transition-colors">
                     <div className="bg-slate-800 dark:bg-slate-900 p-6 text-white border-b border-slate-700">
                         <h2 className="font-bold flex items-center gap-2">
@@ -153,12 +189,28 @@ export default function MasterData() {
                         {activeTab === 'position' && (
                             <>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Gaji Pokok</label>
-                                    <input type="number" required value={form.salary} onChange={(e) => setForm({...form, salary: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"/>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Gaji Pokok (Rp)</label>
+                                    {/* 🌟 DIUBAH KE TEXT & DI-FORMAT */}
+                                    <input 
+                                        type="text" 
+                                        inputMode="numeric"
+                                        required 
+                                        value={formatInputCurrency(form.salary)} 
+                                        onChange={(e) => handleCurrencyChange(e, 'salary')} 
+                                        className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                                    />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Tunjangan</label>
-                                    <input type="number" required value={form.allowance} onChange={(e) => setForm({...form, allowance: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"/>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Tunjangan (Rp)</label>
+                                    {/* 🌟 DIUBAH KE TEXT & DI-FORMAT */}
+                                    <input 
+                                        type="text" 
+                                        inputMode="numeric"
+                                        required 
+                                        value={formatInputCurrency(form.allowance)} 
+                                        onChange={(e) => handleCurrencyChange(e, 'allowance')} 
+                                        className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                                    />
                                 </div>
                             </>
                         )}
@@ -179,7 +231,6 @@ export default function MasterData() {
                         Daftar {activeTab === 'position' ? 'Jabatan' : 'Divisi'}
                     </h3>
                     
-                    {/* SEARCH BAR */}
                     <div className="relative w-full md:w-72">
                         <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input 
@@ -233,7 +284,7 @@ export default function MasterData() {
           </div>
         </div>
 
-        {/* 🌟 PERBAIKAN UI: MODAL EDIT DATA */}
+        {/* MODAL EDIT DATA */}
         {editModal.show && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                 <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
@@ -250,18 +301,36 @@ export default function MasterData() {
                         {activeTab === 'position' && (
                             <>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Gaji Pokok</label>
-                                    <input type="number" required value={editModal.data.salary} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, salary: e.target.value}})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all font-mono"/>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Gaji Pokok (Rp)</label>
+                                    {/* 🌟 DIUBAH KE TEXT & DI-FORMAT UNTUK MODAL EDIT */}
+                                    <input 
+                                        type="text" 
+                                        inputMode="numeric"
+                                        required 
+                                        value={formatInputCurrency(editModal.data.salary)} 
+                                        onChange={(e) => handleEditCurrencyChange(e, 'salary')} 
+                                        className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all font-mono"
+                                    />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Tunjangan</label>
-                                    <input type="number" required value={editModal.data.allowance} onChange={(e) => setEditModal({...editModal, data: {...editModal.data, allowance: e.target.value}})} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all font-mono"/>
+                                    <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Standar Tunjangan (Rp)</label>
+                                    {/* 🌟 DIUBAH KE TEXT & DI-FORMAT UNTUK MODAL EDIT */}
+                                    <input 
+                                        type="text" 
+                                        inputMode="numeric"
+                                        required 
+                                        value={formatInputCurrency(editModal.data.allowance)} 
+                                        onChange={(e) => handleEditCurrencyChange(e, 'allowance')} 
+                                        className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all font-mono"
+                                    />
                                 </div>
                             </>
                         )}
                         <div className="pt-6 flex gap-3">
                             <button type="button" onClick={() => setEditModal({ show: false, data: {} })} className="flex-1 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
-                            <button type="submit" disabled={processing} className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 disabled:bg-blue-400 disabled:shadow-none">{processing ? <Loader2 size={18} className="animate-spin"/> : <><Save size={18}/> Simpan</>}</button>
+                            <button type="submit" disabled={processing} className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2 disabled:bg-blue-400 disabled:shadow-none">
+                                {processing ? <Loader2 size={18} className="animate-spin"/> : <><Save size={18}/> Simpan</>}
+                            </button>
                         </div>
                     </form>
                 </div>

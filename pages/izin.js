@@ -28,7 +28,7 @@ export default function PengajuanIzin() {
     const end = new Date(endDate);
     if (end < start) return 0;
     
-    if (duration === 'half_day') return 0.5;
+    if (duration === 'half_day_late' || duration === 'half_day_early') return 0.5;
 
     let count = 0;
     let currentDate = new Date(start);
@@ -41,7 +41,7 @@ export default function PengajuanIzin() {
   };
 
   useEffect(() => {
-    if (form.duration === 'half_day' && form.start_date) {
+    if ((form.duration === 'half_day_late' || form.duration === 'half_day_early') && form.start_date) {
       setForm(prev => ({ ...prev, end_date: prev.start_date }));
     }
   }, [form.duration, form.start_date]);
@@ -173,7 +173,7 @@ export default function PengajuanIzin() {
       if (filteredData.length === 0) return alert("Tidak ada data untuk diexport!");
       const headers = ["Nama,Jenis,Durasi,Tanggal Mulai,Tanggal Selesai,Alasan,Status\n"];
       const rows = filteredData.map(r => {
-        const durasiLabel = r.duration === 'half_day' ? 'Setengah Hari' : 'Seharian';
+        const durasiLabel = r.duration === 'half_day_late' ? 'Datang Terlambat' : r.duration === 'half_day_early' ? 'Pulang Cepat' : 'Seharian';
         return `${r.name},${r.type},${durasiLabel},${r.start_date.split('T')[0]},${r.end_date.split('T')[0]},${r.reason.replace(/,/g, ' ')},${r.status}`;
       }).join("\n");
       const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -196,7 +196,6 @@ export default function PengajuanIzin() {
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-10 py-6 px-4">
         <div className={`mx-auto space-y-6 ${user.role === 'admin' ? 'max-w-7xl' : 'max-w-4xl'}`}>
           
-          {/* 🌟 PERBAIKAN UI: Tombol Kembali ke Dashboard yang Sangat Jelas */}
           <button 
              onClick={() => router.push('/dashboard')} 
              className="group flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-sm hover:shadow-md transition-all hover:-translate-x-1 w-fit"
@@ -208,7 +207,6 @@ export default function PengajuanIzin() {
           {/* AREA KARYAWAN: FORM PENGAJUAN */}
           {user.role !== 'admin' && (
               <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden transition-colors duration-300">
-                {/* 🌟 PERBAIKAN UI: Header Form Premium */}
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 md:p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                    <div className="flex gap-4 items-center">
                        <div className="p-3.5 bg-white/20 rounded-2xl backdrop-blur-sm shadow-inner"><FileText size={28} /></div>
@@ -248,7 +246,8 @@ export default function PengajuanIzin() {
                             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Durasi Izin</label>
                             <select value={form.duration} onChange={(e) => setForm({...form, duration: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white outline-none font-medium focus:ring-2 focus:ring-indigo-500 transition-all">
                                 <option value="full_day">Seharian Penuh (Full Day)</option>
-                                <option value="half_day">Setengah Hari (Pulang Awal / Telat)</option>
+                                <option value="half_day_late">Setengah Hari (Datang Terlambat)</option>
+                                <option value="half_day_early">Setengah Hari (Pulang Cepat)</option>
                             </select>
                          </div>
                      </div>
@@ -259,7 +258,7 @@ export default function PengajuanIzin() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase flex items-center gap-1"><Calendar size={14}/> Sampai Tanggal</label>
-                            <input type="date" required disabled={form.duration === 'half_day'} min={form.start_date || todayDateOnly} value={form.end_date} onChange={(e) => setForm({...form, end_date: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none text-sm disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 transition-all"/>
+                            <input type="date" required disabled={form.duration === 'half_day_late' || form.duration === 'half_day_early'} min={form.start_date || todayDateOnly} value={form.end_date} onChange={(e) => setForm({...form, end_date: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none text-sm disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 transition-all"/>
                         </div>
                      </div>
                      <div className="space-y-2">
@@ -309,7 +308,6 @@ export default function PengajuanIzin() {
                     <h3 className="font-bold text-gray-800 dark:text-white">{user.role === 'admin' ? 'Pusat Approval Izin & Cuti' : 'Riwayat Pengajuan Saya'}</h3>
                 </div>
                 
-                {/* 🌟 PERBAIKAN UI: Filter Admin Dark Mode yang Rapi */}
                 {user.role === 'admin' && (
                     <div className="flex flex-wrap items-center gap-2 bg-gray-100 dark:bg-slate-900/50 p-1.5 rounded-xl border border-gray-200 dark:border-slate-700 w-full md:w-auto">
                         <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="p-2 w-full md:w-auto rounded-lg text-sm border-none bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"/>
@@ -348,14 +346,14 @@ export default function PengajuanIzin() {
                             </td>
                             <td className="p-5 font-bold text-indigo-600 dark:text-indigo-400">
                                 {row.type}
-                                {row.duration === 'half_day' && <span className="block text-[10px] font-semibold text-orange-500 mt-0.5">(Setengah Hari)</span>}
+                                {row.duration === 'half_day_late' && <span className="block text-[10px] font-semibold text-blue-500 mt-0.5">(Datang Terlambat)</span>}
+                                {row.duration === 'half_day_early' && <span className="block text-[10px] font-semibold text-orange-500 mt-0.5">(Pulang Cepat)</span>}
                             </td>
                             <td className="p-5 max-w-[150px] truncate" title={row.reason}>{row.reason}</td>
                             <td className="p-5 text-center">
                                 {row.file_bukti ? <button onClick={() => setViewImageModal({ show: true, src: row.file_bukti })} className="p-2 text-indigo-500 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 rounded-lg transition mx-auto shadow-sm"><Eye size={16}/></button> : <span className="text-gray-400">-</span>}
                             </td>
                             <td className="p-5 text-center">
-                               {/* 🌟 PERBAIKAN UI: Badge transparan di Dark Mode */}
                                <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 
                                    ${row.status === 'Pending' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 
                                      row.status === 'Approved' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 
@@ -396,10 +394,7 @@ export default function PengajuanIzin() {
         </div>
 
         {/* MODAL EDIT PENGAJUAN */}
-        {editModal.show && (() => {
-            const selectedEditRule = masterLeaveTypes.find(t => t.name === editModal.data.type);
-            
-            return (
+        {editModal.show && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                 <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-gray-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
                     <div className="p-5 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/80">
@@ -421,11 +416,12 @@ export default function PengajuanIzin() {
                                 <select value={editModal.data.duration || 'full_day'} onChange={(e) => {
                                     const newDuration = e.target.value;
                                     const newData = {...editModal.data, duration: newDuration};
-                                    if(newDuration === 'half_day') newData.end_date = newData.start_date;
+                                    if(newDuration === 'half_day_late' || newDuration === 'half_day_early') newData.end_date = newData.start_date;
                                     setEditModal({...editModal, data: newData});
                                 }} className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm transition-all focus:ring-2 focus:ring-blue-500">
                                     <option value="full_day">Seharian</option>
-                                    <option value="half_day">Setengah Hari</option>
+                                    <option value="half_day_late">Setengah Hari (Datang Terlambat)</option>
+                                    <option value="half_day_early">Setengah Hari (Pulang Cepat)</option>
                                 </select>
                             </div>
                         </div>
@@ -438,7 +434,7 @@ export default function PengajuanIzin() {
                                     onChange={(e) => {
                                         const newStart = e.target.value;
                                         const newData = {...editModal.data, start_date: newStart};
-                                        if(newData.duration === 'half_day') newData.end_date = newStart;
+                                        if(newData.duration === 'half_day_late' || newData.duration === 'half_day_early') newData.end_date = newStart;
                                         setEditModal({...editModal, data: newData});
                                     }} 
                                     className="w-full p-3 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none text-sm focus:ring-2 focus:ring-blue-500 transition-all"
@@ -446,7 +442,7 @@ export default function PengajuanIzin() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sampai</label>
-                                <input type="date" required disabled={editModal.data.duration === 'half_day'} 
+                                <input type="date" required disabled={editModal.data.duration === 'half_day_late' || editModal.data.duration === 'half_day_early'} 
                                     min={editModal.data.start_date || todayDateOnly} 
                                     value={editModal.data.end_date || ''} 
                                     onChange={(e) => setEditModal({...editModal, data: {...editModal.data, end_date: e.target.value}})} 
@@ -486,15 +482,13 @@ export default function PengajuanIzin() {
                     </form>
                 </div>
             </div>
-            );
-        })()}
+        )}
 
         {/* MODAL PREVIEW GAMBAR */}
         {viewImageModal.show && (
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={() => setViewImageModal({show: false, src: ''})}>
                 <div className="bg-transparent p-2 rounded-2xl max-w-3xl w-full relative flex flex-col items-center animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => setViewImageModal({show: false, src: ''})} className="absolute -top-12 right-0 bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-full backdrop-blur-sm transition-colors"><X size={24}/></button>
-                    {/* Jika filenya PDF, render iframe. Jika gambar, render img */}
                     {viewImageModal.src.includes('application/pdf') ? (
                         <iframe src={viewImageModal.src} className="w-full h-[70vh] rounded-2xl bg-white" title="Bukti PDF"></iframe>
                     ) : (

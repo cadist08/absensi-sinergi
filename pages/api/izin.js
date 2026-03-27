@@ -37,8 +37,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: `Jenis pengajuan ${type} WAJIB melampirkan bukti.` });
     }
 
+    // UBAH BAGIAN INI:
     let jumlahHari = 0;
-    if (duration === 'half_day') {
+    if (duration === 'half_day_late' || duration === 'half_day_early') {
         jumlahHari = 0.5;
     } else {
         let currentDate = new Date(start);
@@ -58,10 +59,11 @@ export default async function handler(req, res) {
       }
     }
 
+    // 🌟 PERBAIKAN BUG 3: Rumus Universal Cek Tanggal Bentrok
     const [existingLeaves] = await db.query(
       `SELECT id FROM leaves WHERE user_id = ? AND status != 'Rejected' 
-       AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))`, 
-      [user_id, end_date, start_date, start_date, end_date]
+       AND (start_date <= ? AND end_date >= ?)`, 
+      [user_id, end_date, start_date]
     );
 
     if (existingLeaves.length > 0) {

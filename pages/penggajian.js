@@ -12,7 +12,8 @@ export default function Penggajian() {
   const [employeeList, setEmployeeList] = useState([]);
   
   const [processing, setProcessing] = useState(false);
-  const [form, setForm] = useState({ user_id: '', month: '', basic_salary: 0, allowance: 0, deduction: 0 });
+  // 🌟 State diubah default-nya menjadi string kosong agar mudah dihapus (backspace)
+  const [form, setForm] = useState({ user_id: '', month: '', basic_salary: '', allowance: '', deduction: '' });
 
   const [attStats, setAttStats] = useState({ present: 0, late: 0, leave: 0, alpha: 0, weekdays: 0, isFetching: false });
 
@@ -49,10 +50,13 @@ export default function Penggajian() {
 
   useEffect(() => {
     const fetchAttendanceContext = async () => {
-      if (form.user_id && form.month && form.basic_salary >= 0) {
+      // Pastikan basic_salary dikonversi ke Number agar tidak error jika kosong
+      const currentBasicSalary = Number(form.basic_salary) || 0;
+      
+      if (form.user_id && form.month && currentBasicSalary >= 0) {
         setAttStats(prev => ({ ...prev, isFetching: true }));
         try {
-          const res = await fetch(`/api/payrolls?action=checkAttendance&checkUserId=${form.user_id}&month=${form.month}&basicSalary=${form.basic_salary}`);
+          const res = await fetch(`/api/payrolls?action=checkAttendance&checkUserId=${form.user_id}&month=${form.month}&basicSalary=${currentBasicSalary}`);
           if (res.ok) {
             const data = await res.json();
             setAttStats({ 
@@ -64,7 +68,7 @@ export default function Penggajian() {
                 isFetching: false 
             });
             
-            setForm(prev => ({ ...prev, deduction: data.suggested_deduction }));
+            setForm(prev => ({ ...prev, deduction: data.suggested_deduction || 0 }));
           }
         } catch (e) { 
           setAttStats(prev => ({ ...prev, isFetching: false }));
@@ -76,18 +80,40 @@ export default function Penggajian() {
     fetchAttendanceContext();
   }, [form.user_id, form.month, form.basic_salary]);
 
-  const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+  // Fungsi format Rupiah untuk Tabel & Print
+  const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
+
+  // 🌟 FUNGSI BARU: Mengubah angka menjadi format ribuan dengan titik (Contoh: 10000000 -> 10.000.000)
+  const formatInputCurrency = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  // 🌟 FUNGSI BARU: Menangani input saat diketik, membuang semua karakter selain angka
+  const handleCurrencyChange = (e, field) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, ''); // Hapus semua selain angka
+    setForm({ ...form, [field]: rawValue ? parseInt(rawValue, 10) : '' });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setProcessing(true);
+    
+    // Siapkan data untuk dikirim, pastikan kosong ('') berubah menjadi 0
+    const payload = {
+        ...form,
+        basic_salary: Number(form.basic_salary) || 0,
+        allowance: Number(form.allowance) || 0,
+        deduction: Number(form.deduction) || 0,
+    };
+
     try {
       const res = await fetch('/api/payrolls', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       if (res.ok) {
         alert("Slip Gaji Berhasil Dibuat & Notifikasi Terkirim!");
-        setForm({ user_id: '', month: '', basic_salary: 0, allowance: 0, deduction: 0 });
+        setForm({ user_id: '', month: '', basic_salary: '', allowance: '', deduction: '' });
         setAttStats({ present: 0, late: 0, leave: 0, alpha: 0, weekdays: 0, isFetching: false });
         fetchPayrolls();
       } else {
@@ -125,7 +151,6 @@ export default function Penggajian() {
         
         <div className={`mx-auto space-y-6 ${user.role === 'admin' ? 'max-w-7xl' : 'max-w-5xl'} print:hidden`}>
           
-          {/* 🌟 PERBAIKAN UI: Tombol Kembali ke Dashboard Interaktif */}
           <button 
              onClick={() => router.push('/dashboard')} 
              className="group flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-sm hover:shadow-md transition-all hover:-translate-x-1 w-fit"
@@ -157,8 +182,8 @@ export default function Penggajian() {
                                     setForm(prev => ({
                                         ...prev, 
                                         user_id: selectedId,
-                                        basic_salary: selectedEmp ? (selectedEmp.default_salary || 0) : 0,
-                                        allowance: selectedEmp ? (selectedEmp.default_allowance || 0) : 0
+                                        basic_salary: selectedEmp ? (selectedEmp.default_salary || 0) : '',
+                                        allowance: selectedEmp ? (selectedEmp.default_allowance || 0) : ''
                                     }));
                                 }} 
                                 className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white outline-none font-medium focus:ring-2 focus:ring-emerald-500 transition-all"
@@ -173,7 +198,6 @@ export default function Penggajian() {
                         </div>
                      </div>
 
-                     {/* 🌟 PERBAIKAN UI: Mini Dashboard Responsif (Tidak Hancur di HP) */}
                      {form.user_id && form.month && (
                         <div className="mt-6 mb-2 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 transition-all">
                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -198,15 +222,40 @@ export default function Penggajian() {
                      )}
                      
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-                        <div className="space-y-2"><label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gaji Pokok (Rp)</label><input type="number" required value={form.basic_salary} onChange={(e) => setForm({...form, basic_salary: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"/></div>
-                        <div className="space-y-2"><label className="text-xs font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">Tunjangan / Bonus (Rp)</label><input type="number" value={form.allowance} onChange={(e) => setForm({...form, allowance: e.target.value})} className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"/></div>
-                        
+                        {/* 🌟 PERUBAHAN INPUT GAJI: type text, inputMode numeric, dan pakai formatter */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gaji Pokok (Rp)</label>
+                            <input 
+                                type="text" 
+                                inputMode="numeric"
+                                required 
+                                value={formatInputCurrency(form.basic_salary)} 
+                                onChange={(e) => handleCurrencyChange(e, 'basic_salary')} 
+                                className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">Tunjangan / Bonus (Rp)</label>
+                            <input 
+                                type="text" 
+                                inputMode="numeric"
+                                value={formatInputCurrency(form.allowance)} 
+                                onChange={(e) => handleCurrencyChange(e, 'allowance')} 
+                                className="w-full p-3.5 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-mono"
+                            />
+                        </div>
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider flex flex-col gap-0.5">
                                 <span>Potongan (Rp)</span>
                                 <span className="text-[9px] text-rose-400 dark:text-rose-500/80 font-normal normal-case">*Otomatis = (Alpha × Gaji/Hari) + (Telat × 50rb)</span>
                             </label>
-                            <input type="number" value={form.deduction} onChange={(e) => setForm({...form, deduction: e.target.value})} className="w-full p-3.5 rounded-xl border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 outline-none focus:ring-2 focus:ring-rose-500 transition-all font-mono font-bold"/>
+                            <input 
+                                type="text" 
+                                inputMode="numeric"
+                                value={formatInputCurrency(form.deduction)} 
+                                onChange={(e) => handleCurrencyChange(e, 'deduction')} 
+                                className="w-full p-3.5 rounded-xl border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 outline-none focus:ring-2 focus:ring-rose-500 transition-all font-mono font-bold"
+                            />
                         </div>
                      </div>
                      <button type="submit" disabled={processing} className="w-full md:w-auto px-10 py-4 mt-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/30 transition-all flex items-center justify-center gap-2 disabled:bg-emerald-400 disabled:shadow-none text-lg"><PlusCircle size={20} /> Terbitkan Slip Gaji</button>
@@ -238,7 +287,6 @@ export default function Penggajian() {
                             </td>
                             <td className="p-5 font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">{formatRupiah(row.total_salary)}</td>
                             <td className="p-5 text-center">
-                                {/* 🌟 PERBAIKAN UI: Badge Transparan di Dark Mode */}
                                 {user.role === 'admin' ? (
                                     <button onClick={() => handleStatusChange(row.id, row.status)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${row.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-900/60' : 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-400 dark:hover:bg-orange-900/60'}`}>{row.status}</button>
                                 ) : (

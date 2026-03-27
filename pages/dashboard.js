@@ -5,7 +5,7 @@ import Layout from '../components/layout';
 import Webcam from 'react-webcam'; 
 import { 
   Sun, Moon, LogOut, Loader2, 
-  Users, CheckCircle, Clock, MapPin, List, Calendar, ScanFace, FileDown, Trash2, FileText, Bell, X, CheckCheck, Info 
+  Users, CheckCircle, Clock, MapPin, List, Calendar, ScanFace, FileDown, Trash2, FileText, Bell, X, CheckCheck, Info, AlertCircle 
 } from 'lucide-react'; 
 
 export default function Dashboard() {
@@ -37,6 +37,11 @@ export default function Dashboard() {
   const webcamRef = useRef(null);
   const isDetectingRef = useRef(false);
   const scanIntervalRef = useRef(null); 
+  
+  // 🌟 STATE UNTUK LOKASI LIVE DI UI
+  const locationRef = useRef(null);
+  const [locationUI, setLocationUI] = useState({ lat: null, long: null, address: null, status: 'Menyiapkan GPS...' });
+  
   const [isScanning, setIsScanning] = useState(false);
   const [scanMode, setScanMode] = useState(''); 
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -79,6 +84,44 @@ export default function Dashboard() {
 
   useEffect(() => {
     return () => { if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); };
+  }, []);
+
+  // 🌟 MENDAPATKAN LOKASI LIVE & REVERSE GEOCODING (OSM)
+  useEffect(() => {
+    if (navigator.geolocation) {
+       const watchId = navigator.geolocation.watchPosition(
+           async (pos) => {
+               const lat = pos.coords.latitude;
+               const lon = pos.coords.longitude;
+               
+               setLocationUI(prev => ({ ...prev, lat, long: lon, status: 'Akurat' }));
+               locationRef.current = { lat, long: lon };
+
+               try {
+                   const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+                   const data = await response.json();
+                   
+                   if (data && data.display_name) {
+                       let shortAddress = data.display_name;
+                       const addressParts = shortAddress.split(', ');
+                       if (addressParts.length > 3) {
+                           shortAddress = `${addressParts[0]}, ${addressParts[1]}, ${addressParts[2]}`;
+                       }
+                       setLocationUI({ lat, long: lon, address: shortAddress, status: 'Akurat' });
+                   }
+               } catch (error) {
+                   console.error("Gagal reverse geocoding", error);
+               }
+           },
+           (err) => {
+               setLocationUI({ lat: null, long: null, address: null, status: 'Akses GPS Ditolak/Gagal' });
+           },
+           { enableHighAccuracy: true }
+       );
+       return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+       setLocationUI({ lat: null, long: null, address: null, status: 'Perangkat tidak mendukung GPS' });
+    }
   }, []);
 
   useEffect(() => {
@@ -234,9 +277,14 @@ export default function Dashboard() {
   const handleAbsensi = async () => {
     setProcessing(true);
     const type = !todayRecord || todayRecord.check_in === '-' || todayRecord.check_in === null ? 'in' : 'out';
+    const lat = locationRef.current?.lat || null;
+    const long = locationRef.current?.long || null;
+
     try {
       const res = await fetch('/api/attendance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ type, latitude: lat, longitude: long }) 
       });
       const result = await res.json();
       if (res.ok) { alert(result.message); await loadAttendance(user.role); } 
@@ -275,26 +323,35 @@ export default function Dashboard() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 transition-colors duration-300"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
   if (!user) return null;
 
-  const isIzinHalfDay = todayRecord?.status?.includes('(Setengah Hari)');
+  const isIzinPulangCepat = todayRecord?.status?.includes('(Pulang Cepat)');
+  const isIzinDatangTerlambat = todayRecord?.status?.includes('(Datang Terlambat)');
+  const isIzinHalfDay = isIzinPulangCepat || isIzinDatangTerlambat;
+  
   const isCutiSakitFull = todayRecord?.status && (todayRecord.status.includes('Sakit') || todayRecord.status.includes('Izin') || todayRecord.status.includes('Cuti')) && !isIzinHalfDay;
 
-  const isCheckedIn = (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-') || isCutiSakitFull;
-  const isCheckedOut = (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-') || isCutiSakitFull || isIzinHalfDay; 
+  const hasRealCheckIn = todayRecord && todayRecord.check_in && todayRecord.check_in !== '-';
+  const isCheckedIn = hasRealCheckIn || isCutiSakitFull;
+
+  const hasRealCheckOut = todayRecord && todayRecord.check_out && todayRecord.check_out !== '-';
+  const isCheckedOut = hasRealCheckOut || isCutiSakitFull; 
   
-  const jamMasuk = isCutiSakitFull ? 'IZIN' : (todayRecord && todayRecord.check_in && todayRecord.check_in !== '-' ? todayRecord.check_in.substring(0,5) : '--:--');
-  const jamPulang = (isIzinHalfDay || isCutiSakitFull) ? 'IZIN' : (todayRecord && todayRecord.check_out && todayRecord.check_out !== '-' ? todayRecord.check_out.substring(0,5) : '--:--');
+  const jamMasuk = isCutiSakitFull ? 'IZIN' : (hasRealCheckIn ? todayRecord.check_in.substring(0,5) : '--:--');
+  const jamPulang = isCutiSakitFull ? 'IZIN' : (hasRealCheckOut ? todayRecord.check_out.substring(0,5) : '--:--');
 
   const exportToCSV = () => {
     if (filteredHistory.length === 0) return alert("Tidak ada data untuk diexport!");
-    const headers = "Nama,Tanggal,Check In,Check Out,Status\n";
+    const headers = "Nama,Tanggal,Check In,Check Out,Status,Lokasi Masuk (Lat/Long),Lokasi Pulang (Lat/Long)\n";
     const rows = filteredHistory.map(row => {
-        const rowIsHalf = row.status?.includes('(Setengah Hari)');
-        const rowIsFull = row.status && (row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti')) && !rowIsHalf;
+        const isHalfPulang = row.status?.includes('(Pulang Cepat)');
+        const isHalfTelat = row.status?.includes('(Datang Terlambat)');
+        const isFull = row.status && (row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti')) && !isHalfPulang && !isHalfTelat;
         
-        const csvCheckIn = rowIsFull ? 'IZIN' : (row.check_in || '-');
-        const csvCheckOut = (rowIsHalf || rowIsFull) ? 'IZIN' : (row.check_out || '-');
+        const csvCheckIn = isFull ? 'IZIN' : (row.check_in || '-');
+        const csvCheckOut = isFull ? 'IZIN' : (row.check_out || '-');
+        const locIn = row.lat_in && row.long_in ? `${row.lat_in} ${row.long_in}` : '-';
+        const locOut = row.lat_out && row.long_out ? `${row.lat_out} ${row.long_out}` : '-';
         
-        return `${row.name},${getJakartaDateISO(row.date)},${csvCheckIn},${csvCheckOut},${row.status}`;
+        return `${row.name},${getJakartaDateISO(row.date)},${csvCheckIn},${csvCheckOut},${row.status},${locIn},${locOut}`;
     }).join("\n");
     const blob = new Blob([headers + rows], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -307,11 +364,12 @@ export default function Dashboard() {
   };
 
   const TableRow = ({ row }) => {
-    const isRowHalf = row.status?.includes('(Setengah Hari)');
-    const isRowFull = row.status && (row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti')) && !isRowHalf;
+    const isHalfPulang = row.status?.includes('(Pulang Cepat)');
+    const isHalfTelat = row.status?.includes('(Datang Terlambat)');
+    const isFull = row.status && (row.status.includes('Sakit') || row.status.includes('Izin') || row.status.includes('Cuti')) && !isHalfPulang && !isHalfTelat;
     
-    const displayCheckIn = isRowFull ? 'IZIN' : (row.check_in && row.check_in !== '-' ? row.check_in.substring(0,5) : '-');
-    const displayCheckOut = (isRowHalf || isRowFull) ? 'IZIN' : (row.check_out && row.check_out !== '-' ? row.check_out.substring(0,5) : '-');
+    const displayCheckIn = isFull ? 'IZIN' : (row.check_in && row.check_in !== '-' ? row.check_in.substring(0,5) : '-');
+    const displayCheckOut = isFull ? 'IZIN' : (row.check_out && row.check_out !== '-' ? row.check_out.substring(0,5) : '-');
 
     return (
       <tr className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -321,10 +379,29 @@ export default function Dashboard() {
         <td className="p-4 md:p-5 whitespace-nowrap text-gray-700 dark:text-gray-300">{getJakartaDateISO(row.date)}</td>
         <td className="p-4 md:p-5 font-mono text-emerald-600 dark:text-emerald-400">{displayCheckIn}</td>
         <td className="p-4 md:p-5 font-mono text-orange-600 dark:text-orange-400">{displayCheckOut}</td>
+        
+        {user.role === 'admin' && (
+          <td className="p-4 md:p-5 text-center">
+             <div className="flex justify-center gap-2">
+                {row.lat_in && row.long_in ? (
+                    <a href={`https://www.google.com/maps?q=${row.lat_in},${row.long_in}`} target="_blank" rel="noreferrer" className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white dark:bg-blue-900/20 dark:text-blue-400 rounded-lg transition-colors flex flex-col items-center" title="Lokasi Masuk">
+                        <MapPin size={16}/> <span className="text-[8px] mt-0.5 font-bold">IN</span>
+                    </a>
+                ) : <span className="text-gray-300 dark:text-gray-600 p-1.5">-</span>}
+                
+                {row.lat_out && row.long_out ? (
+                    <a href={`https://www.google.com/maps?q=${row.lat_out},${row.long_out}`} target="_blank" rel="noreferrer" className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white dark:bg-orange-900/20 dark:text-orange-400 rounded-lg transition-colors flex flex-col items-center" title="Lokasi Pulang">
+                        <MapPin size={16}/> <span className="text-[8px] mt-0.5 font-bold">OUT</span>
+                    </a>
+                ) : null}
+             </div>
+          </td>
+        )}
+
         <td className="p-4 md:p-5">
            <span className={`px-2 md:px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 
               ${row.status === 'Terlambat' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 
-                (isRowFull || isRowHalf) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 
+                (isFull || isHalfPulang || isHalfTelat) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 
                 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
               {row.status}
            </span>
@@ -344,7 +421,7 @@ export default function Dashboard() {
     <Layout>
       <div className="min-h-[100dvh] bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-10">
         
-        {/* HEADER ATAS - Responsif Flex-Wrap */}
+        {/* HEADER ATAS */}
         <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center sticky top-0 z-10 shadow-sm transition-colors duration-300 gap-4 sm:gap-0">
             <div>
                 {user.role === 'admin' ? (
@@ -363,7 +440,6 @@ export default function Dashboard() {
             </div>
             
             <div className="flex items-center justify-end w-full sm:w-auto gap-3">
-                {/* BLOK UI NOTIFIKASI */}
                 <div className="relative z-50">
                   <button onClick={() => setShowNotif(!showNotif)} className="p-2 relative rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-gray-200 transition-colors">
                     <Bell size={20} />
@@ -394,11 +470,9 @@ export default function Dashboard() {
                         notifications.map(n => (
                           <div key={n.id} onClick={() => markAsRead(n.id)} className={`relative p-4 border-b dark:border-slate-700/50 cursor-pointer transition-colors flex gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 ${!n.is_read ? 'bg-indigo-50/40 dark:bg-indigo-900/20' : ''}`}>
                             {!n.is_read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-r-full"></div>}
-                            
                             <div className={`mt-1 p-2 rounded-full h-fit flex-shrink-0 ${n.title.toLowerCase().includes('disetujui') ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : n.title.toLowerCase().includes('ditolak') ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'}`}>
                                 {n.title.toLowerCase().includes('disetujui') ? <CheckCircle size={14}/> : n.title.toLowerCase().includes('ditolak') ? <X size={14}/> : <Info size={14}/>}
                             </div>
-                            
                             <div className="flex-1 pr-2">
                               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-1 gap-0.5 sm:gap-0">
                                 <span className={`text-sm font-bold leading-tight ${!n.is_read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{n.title}</span>
@@ -422,7 +496,6 @@ export default function Dashboard() {
         {/* --- KONTEN BERDASARKAN ROLE --- */}
         {user.role === 'admin' ? (
             <div className="p-4 md:p-6 max-w-7xl mx-auto">
-              {/* GRID STATISTIK - Responsif HP, Tablet, Desktop */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                   <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
                       <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><Users size={60} className="text-indigo-600 dark:text-indigo-400 md:w-20 md:h-20"/></div>
@@ -430,7 +503,7 @@ export default function Dashboard() {
                       <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalHadirSemua}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CheckCircle size={60} className="text-emerald-500 dark:text-emerald-400 md:w-20 md:h-20"/></div>
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CheckCircle size={60} className="textemerald-500 dark:text-emerald-400 md:w-20 md:h-20"/></div>
                       <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">Tepat Waktu</h3>
                       <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalTepatWaktu}</p>
                   </div>
@@ -452,7 +525,6 @@ export default function Dashboard() {
                       <List className="text-indigo-500 dark:text-indigo-400"/> Rekapitulasi Absensi
                     </h3>
                     
-                    {/* FILTER ADMIN - Memanjang di HP */}
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 md:gap-3 bg-gray-50 dark:bg-slate-900/50 p-2 rounded-xl border border-gray-100 dark:border-slate-700">
                         <select value={filterName} onChange={(e) => setFilterName(e.target.value)} className="p-2.5 sm:p-2 w-full sm:w-32 rounded-lg text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"><option value="">Semua Nama</option>{allUsers.map(n => <option key={n} value={n}>{n}</option>)}</select>
                         <input type="date" value={startDate} onChange={(e) => {setStartDate(e.target.value); setFilterDate('');}} className="p-2.5 sm:p-2 w-full sm:w-32 rounded-lg text-sm border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"/>
@@ -465,11 +537,11 @@ export default function Dashboard() {
                  <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                        <thead className="bg-gray-50 dark:bg-slate-900/50 text-gray-800 dark:text-gray-200 uppercase font-bold text-[10px] md:text-xs tracking-wider border-b border-gray-200 dark:border-slate-700">
-                          <tr><th className="p-4 md:p-5 whitespace-nowrap">Nama</th><th className="p-4 md:p-5 whitespace-nowrap">Tanggal</th><th className="p-4 md:p-5">Masuk</th><th className="p-4 md:p-5">Pulang</th><th className="p-4 md:p-5">Status</th><th className="p-4 md:p-5 text-center">Aksi</th></tr>
+                          <tr><th className="p-4 md:p-5 whitespace-nowrap">Nama</th><th className="p-4 md:p-5 whitespace-nowrap">Tanggal</th><th className="p-4 md:p-5">Masuk</th><th className="p-4 md:p-5">Pulang</th><th className="p-4 md:p-5 text-center">Lokasi</th><th className="p-4 md:p-5">Status</th><th className="p-4 md:p-5 text-center">Aksi</th></tr>
                        </thead>
                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                           {filteredHistory.map((row) => <TableRow key={row.id} row={row} />)}
-                          {filteredHistory.length === 0 && (<tr><td colSpan="6" className="p-10 text-center text-gray-400 italic">Data absensi tidak ditemukan.</td></tr>)}
+                          {filteredHistory.length === 0 && (<tr><td colSpan="7" className="p-10 text-center text-gray-400 italic">Data absensi tidak ditemukan.</td></tr>)}
                        </tbody>
                     </table>
                  </div>
@@ -480,27 +552,77 @@ export default function Dashboard() {
               {/* KARTU JAM & WEBCAM */}
               <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-slate-700 text-center relative overflow-hidden transition-colors duration-300">
                   <div className="absolute top-0 left-0 w-full h-1 md:h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-                  <h2 className="text-xs md:text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 md:mb-4 transition-colors">Waktu Indonesia Barat</h2>
-                  <div className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-800 dark:text-white mb-6 md:mb-8 font-mono tracking-wider tabular-nums transition-colors">{currentTime}</div>
+                  <h2 className="text-xs md:text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1 md:mb-2 transition-colors">Waktu Indonesia Barat</h2>
                   
+                  <div className="text-4xl sm:text-5xl md:text-7xl font-black text-gray-800 dark:text-white mb-2 md:mb-3 font-mono tracking-wider tabular-nums transition-colors">{currentTime}</div>
+                  
+                  {/* 🌟 INDIKATOR LOKASI & GOOGLE MAPS 🌟 */}
+                  <div className="flex flex-col items-center w-full mb-6 md:mb-8">
+                      {/* Badge Teks Lokasi */}
+                      <div className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] md:text-xs font-bold border shadow-sm transition-colors max-w-xs md:max-w-md w-fit ${locationUI.lat ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-400' : 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400'}`}>
+                          <MapPin size={14} className={`flex-shrink-0 ${locationUI.lat && !locationUI.address ? "animate-bounce" : ""}`} />
+                          <span className="truncate">
+                              {locationUI.address 
+                                  ? locationUI.address 
+                                  : (locationUI.lat ? `Lokasi Aktif: ${locationUI.lat.toFixed(5)}, ${locationUI.long.toFixed(5)}` : locationUI.status)
+                              }
+                          </span>
+                      </div>
+
+                      {/* Mini Google Maps Preview */}
+                      {locationUI.lat && locationUI.long && (
+                          <div className="w-full max-w-xs md:max-w-md mt-3 h-28 md:h-36 rounded-2xl overflow-hidden shadow-inner border border-gray-200 dark:border-slate-700 relative animate-in fade-in zoom-in duration-500">
+                              <iframe 
+                                  width="100%" 
+                                  height="100%" 
+                                  frameBorder="0" 
+                                  style={{ border: 0 }}
+                                  src={`https://maps.google.com/maps?q=${locationUI.lat},${locationUI.long}&z=16&output=embed`}
+                                  allowFullScreen
+                                  title="Lokasi Karyawan"
+                              ></iframe>
+                              <div className="absolute inset-0 z-10 pointer-events-none shadow-[inset_0_0_10px_rgba(0,0,0,0.1)] rounded-2xl"></div>
+                          </div>
+                      )}
+                  </div>
+
                   <div className="flex justify-center flex-col items-center w-full">
                       {!isCheckedOut ? (
                           isScanning ? (
                               <div className="relative w-full max-w-xl aspect-[3/4] sm:aspect-square md:aspect-video rounded-2xl md:rounded-3xl border-4 md:border-8 border-indigo-100 dark:border-slate-700 overflow-hidden bg-black shadow-2xl flex items-center justify-center animate-in zoom-in duration-300">
                                   <Webcam audio={false} ref={webcamRef} onPlay={handleVideoOnPlay} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "user" }} className="w-full h-full object-cover"/>
-                                  
-                                  {/* Ring Pemindai Adaptif HP */}
                                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                       <div className="w-[60%] h-[50%] md:w-56 md:h-72 border-2 md:border-4 border-white/60 border-dashed rounded-[40%] animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.5)]"></div>
                                   </div>
-                                  
                                   <div className="absolute bottom-4 md:bottom-6 bg-white/95 dark:bg-slate-800/95 px-4 md:px-5 py-2 rounded-full text-[10px] md:text-xs font-bold text-indigo-600 dark:text-indigo-400 z-10 flex items-center gap-2 shadow-lg backdrop-blur-sm border border-gray-200 dark:border-slate-600"><Loader2 className="animate-spin w-3 h-3 md:w-4 md:h-4"/> Memindai Wajah...</div>
                                   <button onClick={() => { setIsScanning(false); setScanMode(''); if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); }} className="absolute top-3 right-3 md:top-4 md:right-4 bg-rose-500/90 hover:bg-rose-600 text-white text-[10px] md:text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full z-10 transition-colors backdrop-blur-sm shadow-md">Batal</button>
                               </div>
                           ) : (
-                              <div className="flex flex-col items-center gap-4 md:gap-6">
+                              <div className="flex flex-col items-center gap-4 md:gap-6 w-full">
+                                  {isIzinPulangCepat && hasRealCheckIn && (
+                                      <div className="w-full max-w-sm bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 p-3 rounded-xl text-center shadow-sm animate-pulse mb-2">
+                                          <div className="font-bold flex justify-center items-center gap-2 mb-1 text-sm"><AlertCircle size={16}/> Status: Izin Pulang Cepat</div>
+                                          <div className="text-xs font-medium text-orange-600 dark:text-orange-500">Silakan absen PULANG sebelum meninggalkan kantor.</div>
+                                      </div>
+                                  )}
+                                  {isIzinDatangTerlambat && !hasRealCheckIn && (
+                                      <div className="w-full max-w-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 p-3 rounded-xl text-center shadow-sm animate-pulse mb-2">
+                                          <div className="font-bold flex justify-center items-center gap-2 mb-1 text-sm"><Clock size={16}/> Status: Izin Datang Terlambat</div>
+                                          <div className="text-xs font-medium text-blue-600 dark:text-blue-500">Silakan absen MASUK setibanya di kantor.</div>
+                                      </div>
+                                  )}
+
                                   {hasRegisteredFace ? (
-                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat model AI, harap tunggu..."); else { setScanMode('absen'); setIsScanning(true); } }} disabled={processing} className={`group relative w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 flex flex-col items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 dark:border-orange-900/50 hover:bg-orange-600'}`}>
+                                    <button 
+                                        onClick={() => { 
+                                            if (!modelsLoaded) return alert("Memuat model AI, harap tunggu...");
+                                            if (!locationRef.current?.lat) return alert("Sistem sedang mendeteksi lokasi (GPS) Anda, harap tunggu sebentar atau pastikan izin lokasi di browser sudah menyala.");
+                                            
+                                            setScanMode('absen'); 
+                                            setIsScanning(true); 
+                                        }} 
+                                        disabled={processing} 
+                                        className={`group relative w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 flex flex-col items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 dark:border-orange-900/50 hover:bg-orange-600'}`}>
                                         {processing ? <Loader2 className="animate-spin w-8 h-8 md:w-10 md:h-10"/> : <><div className="mb-1 md:mb-2 group-hover:-translate-y-1 transition-transform">{!isCheckedIn ? <MapPin className="w-6 h-6 md:w-8 md:h-8"/> : <LogOut className="w-6 h-6 md:w-8 md:h-8"/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
                                     </button>
                                   ) : (
@@ -514,15 +636,16 @@ export default function Dashboard() {
                           <div className="flex flex-col items-center justify-center w-36 h-36 md:w-48 md:h-48 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border-[6px] md:border-8 border-emerald-100 dark:border-emerald-900/50 animate-in zoom-in duration-300 shadow-lg">
                               {isCutiSakitFull ? (
                                   <><FileText className="w-10 h-10 md:w-12 md:h-12 text-amber-500 dark:text-amber-400 mb-1 md:mb-2"/><div className="font-bold text-amber-700 dark:text-amber-400 text-center leading-tight text-xs md:text-base">Sedang Izin<br/>(Seharian)</div></>
-                              ) : isIzinHalfDay ? (
-                                  <><LogOut className="w-10 h-10 md:w-12 md:h-12 text-orange-500 dark:text-orange-400 mb-1 md:mb-2"/><div className="font-bold text-orange-700 dark:text-orange-400 text-center leading-tight text-xs md:text-base">Selesai<br/><span className="text-[10px] md:text-xs font-normal">(Setengah Hari)</span></div></>
+                              ) : isIzinPulangCepat ? (
+                                  <><LogOut className="w-10 h-10 md:w-12 md:h-12 text-orange-500 dark:text-orange-400 mb-1 md:mb-2"/><div className="font-bold text-orange-700 dark:text-orange-400 text-center leading-tight text-xs md:text-base">Selesai<br/><span className="text-[10px] md:text-xs font-normal">(Pulang Cepat)</span></div></>
+                              ) : isIzinDatangTerlambat ? (
+                                  <><LogOut className="w-10 h-10 md:w-12 md:h-12 text-orange-500 dark:text-orange-400 mb-1 md:mb-2"/><div className="font-bold text-orange-700 dark:text-orange-400 text-center leading-tight text-xs md:text-base">Selesai<br/><span className="text-[10px] md:text-xs font-normal">(Datang Telat)</span></div></>
                               ) : (
                                   <><CheckCircle className="w-12 h-12 md:w-16 md:h-16 text-emerald-500 dark:text-emerald-400 mb-1 md:mb-2"/><div className="font-bold text-lg md:text-xl text-emerald-700 dark:text-emerald-400">Selesai</div></>
                               )}
                           </div>
                       )}
                       
-                      {/* Tombol Ajukan Izin - Lebar Penuh di HP */}
                       {!isCheckedIn && !isScanning && (
                           <button onClick={() => router.push('/izin')} className="mt-6 md:mt-8 flex items-center justify-center gap-2 text-xs md:text-sm font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 px-5 py-3 md:py-2.5 rounded-full border border-gray-200 dark:border-slate-700 transition-colors shadow-sm w-full max-w-xs"><FileText size={16}/> Tidak hadir? Ajukan Izin</button>
                       )}

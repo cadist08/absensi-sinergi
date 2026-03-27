@@ -51,34 +51,53 @@ export default async function handler(req, res) {
   
   // --- POST: ABSEN MASUK/PULANG ---
   else if (method === 'POST') {
-    const { type } = req.body;
+    // 🌟 TANGKAP DATA LOKASI DARI FRONTEND
+    const { type, latitude, longitude } = req.body; 
     const { date: today, time: now } = getWIB();
 
     try {
       if (type === 'in') {
-        const [cek] = await db.execute('SELECT id FROM attendance WHERE user_id = ? AND date = ?', [userId, today]);
-        if (cek.length > 0) return res.status(400).json({ message: 'Anda sudah memiliki catatan kehadiran (Hadir/Izin) hari ini!' });
+        const [cek] = await db.execute('SELECT * FROM attendance WHERE user_id = ? AND date = ?', [userId, today]);
+        
+        if (cek.length > 0) {
+            const record = cek[0];
+            // 🌟 LOGIKA PINTAR: Jika sudah ada data tapi check_in masih kosong/strip (Kasus Izin Setengah Hari)
+            if (record.check_in === '-' || record.check_in === null) {
+                await db.execute(
+                    'UPDATE attendance SET check_in = ?, lat_in = ?, long_in = ? WHERE id = ?', 
+                    [now, latitude || null, longitude || null, record.id]
+                );
+                return res.status(200).json({ message: `Berhasil Masuk jam ${now}` });
+            } else {
+                return res.status(400).json({ message: 'Anda sudah melakukan absen masuk hari ini!' });
+            }
+        }
 
+        // Jika absen normal (Belum ada data sama sekali di hari ini)
         const status = now > "08:30:00" ? "Terlambat" : "Hadir";
         await db.execute(
-            'INSERT INTO attendance (user_id, date, check_in, status) VALUES (?, ?, ?, ?)', 
-            [userId, today, now, status]
+            'INSERT INTO attendance (user_id, date, check_in, status, lat_in, long_in) VALUES (?, ?, ?, ?, ?, ?)', 
+            [userId, today, now, status, latitude || null, longitude || null]
         );
         res.status(200).json({ message: `Berhasil Masuk jam ${now}` });
 
       } else if (type === 'out') {
+        // 🌟 UPDATE JAM DAN LOKASI PULANG
         await db.execute(
-            'UPDATE attendance SET check_out = ? WHERE user_id = ? AND date = ? AND check_out IS NULL', 
-            [now, userId, today]
+            `UPDATE attendance 
+             SET check_out = ?, lat_out = ?, long_out = ? 
+             WHERE user_id = ? AND date = ? AND (check_out IS NULL OR check_out = '-')`, 
+            [now, latitude || null, longitude || null, userId, today]
         );
         res.status(200).json({ message: `Berhasil Pulang jam ${now}` });
       }
     } catch (e) {
-      res.status(500).json({ message: 'Gagal menyimpan data' });
+      console.error(e);
+      res.status(500).json({ message: 'Gagal menyimpan data absensi' });
     }
   } 
 
-  // --- 🌟 DELETE: HAPUS ABSENSI (KHUSUS ADMIN) 🌟 ---
+  // --- DELETE: HAPUS ABSENSI (KHUSUS ADMIN) ---
   else if (method === 'DELETE') {
     if (userRole !== 'admin') {
         return res.status(403).json({ message: 'Hanya Admin yang boleh menghapus data!' });

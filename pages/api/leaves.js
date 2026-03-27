@@ -23,12 +23,20 @@ export default async function handler(req, res) {
       const { id, status, type, duration, start_date, end_date, reason, user_id, file_bukti } = req.body;
 
       // === SKENARIO 1: ADMIN APPROVE / REJECT ===
+      // === SKENARIO 1: ADMIN APPROVE / REJECT ===
       if (status && id && !type) {
         const [leaveData] = await db.query('SELECT l.*, u.name, u.email FROM leaves l JOIN users u ON l.user_id = u.id WHERE l.id = ?', [id]);
         const leave = leaveData[0];
         if (!leave) return res.status(404).json({ message: 'Data tidak ditemukan.' });
 
-        await db.query('UPDATE leaves SET status = ? WHERE id = ?', [status, id]);
+        // 🌟 PERBAIKAN BUG 2: Kunci agar HANYA status Pending yang bisa diproses
+        if (leave.status !== 'Pending') {
+            return res.status(400).json({ message: 'Gagal: Data ini sudah diproses sebelumnya.' });
+        }
+
+        await db.query('UPDATE leaves SET status = ? WHERE id = ? AND status = "Pending"', [status, id]);
+        
+        // ... (kode Notifikasi dan Potong Cuti di bawahnya tetap sama) ...
 
         // Notifikasi User
         try {
@@ -47,14 +55,18 @@ export default async function handler(req, res) {
 
           if (isDeduct === 1) {
             let deduction = 0;
-            if (leave.duration === 'half_day') {
+            // Ubah baris ini:
+            if (leave.duration === 'half_day_late' || leave.duration === 'half_day_early') {
                 deduction = 0.5;
             } else {
                 let currentDate = new Date(start);
-                while (currentDate <= end) {
-                    const dayOfWeek = currentDate.getDay();
-                    if (dayOfWeek !== 0 && dayOfWeek !== 6) deduction++;
-                    currentDate.setDate(currentDate.getDate() + 1);
+          while (currentDate <= end) {
+            const dateStr = currentDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+            
+            // Ubah bagian ini agar text statusnya akurat:
+            let attStatus = `${leave.type} - ${leave.reason}`;
+            if (leave.duration === 'half_day_late') attStatus = `${leave.type} (Datang Terlambat) - ${leave.reason}`;
+            if (leave.duration === 'half_day_early') attStatus = `${leave.type} (Pulang Cepat) - ${leave.reason}`;
                 }
             }
             await db.query('UPDATE users SET sisa_cuti = sisa_cuti - ? WHERE id = ?', [deduction, leave.user_id]);
@@ -88,10 +100,11 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Gagal: Anda tidak dapat mengubah izin ke tanggal yang sudah terlewat.' });
         }
 
+        // 🌟 PERBAIKAN BUG 3: Rumus Universal Cek Tanggal Bentrok (Edit)
         const [existingLeaves] = await db.query(
           `SELECT id FROM leaves WHERE user_id = ? AND id != ? AND status != 'Rejected' 
-           AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))`, 
-          [user_id, id, end_date, start_date, start_date, end_date]
+           AND (start_date <= ? AND end_date >= ?)`, 
+          [user_id, id, end_date, start_date]
         );
 
         if (existingLeaves.length > 0) {
@@ -133,7 +146,8 @@ export default async function handler(req, res) {
         const [rules] = await db.query('SELECT is_deduct_leave FROM leave_types WHERE name = ?', [target.type]);
         if (rules[0]?.is_deduct_leave === 1) {
           let deduction = 0;
-          if (target.duration === 'half_day') deduction = 0.5;
+          // Ubah baris ini:
+          if (target.duration === 'half_day_late' || target.duration === 'half_day_early') deduction = 0.5;
           else {
               let currentDate = new Date(start);
               while (currentDate <= end) {
