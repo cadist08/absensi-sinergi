@@ -92,7 +92,7 @@ Gunakan akun berikut untuk menguji coba fitur aplikasi di lingkungan *developmen
 | Role | Username / Email | Password | Hak Akses |
 | --- | --- | --- | --- |
 | **Admin** | admin | `123456` | Master Data, Approval, Payroll, Semua Riwayat |
-| **Karyawan** | fana | `123456` | Absensi Wajah, Pengajuan Izin, Riwayat Pribadi |
+| **Karyawan** | fana | `123` | Absensi Wajah, Pengajuan Izin, Riwayat Pribadi |
 
 ---
 
