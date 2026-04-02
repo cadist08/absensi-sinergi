@@ -47,6 +47,10 @@ export default function Dashboard() {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [hasRegisteredFace, setHasRegisteredFace] = useState(false); 
 
+  // 🌟 TAMBAHAN: State untuk memori wajah & pesan di layar kamera
+  const [savedDescriptor, setSavedDescriptor] = useState(null); 
+  const [scanMessage, setScanMessage] = useState('Memindai Wajah...');
+
   const timeAgo = (dateInput) => {
       if (!dateInput) return '';
       const date = new Date(dateInput);
@@ -86,7 +90,7 @@ export default function Dashboard() {
     return () => { if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); };
   }, []);
 
-  // 🌟 MENDAPATKAN LOKASI LIVE & REVERSE GEOCODING (OSM)
+  // MENDAPATKAN LOKASI LIVE & REVERSE GEOCODING (OSM)
   useEffect(() => {
     if (navigator.geolocation) {
        const watchId = navigator.geolocation.watchPosition(
@@ -168,17 +172,41 @@ export default function Dashboard() {
                 const isEyesClear = leftEye && leftEye.length >= 6 && rightEye && rightEye.length >= 6;
 
                 if (!isFaceClear || !isEyesClear || detection.detection.score < 0.82) {
-                  console.log("Mohon lepaskan kacamata/masker");
+                  setScanMessage("Mohon lepaskan kacamata/masker");
                   isDetectingRef.current = false;
                   return; 
                 }
 
-                clearInterval(scanIntervalRef.current); 
-                setIsScanning(false); 
-                isDetectingRef.current = false; 
-                
-                if (scanMode === 'register') handleSaveFaceToDB(detection.descriptor);
-                else if (scanMode === 'absen') handleAbsensi(); 
+                // 🌟 PERBAIKAN: LOGIKA PENCOCOKAN WAJAH DENGAN DATABASE
+                if (scanMode === 'register') {
+                    clearInterval(scanIntervalRef.current); 
+                    setIsScanning(false); 
+                    isDetectingRef.current = false; 
+                    handleSaveFaceToDB(detection.descriptor);
+                } 
+                else if (scanMode === 'absen') {
+                    if (savedDescriptor) {
+                        // Menghitung jarak kemiripan (Semakin mendekati 0, semakin mirip)
+                        const distance = faceapi.euclideanDistance(detection.descriptor, savedDescriptor);
+                        console.log("Jarak Kemiripan Wajah (Euclidean Distance):", distance);
+
+                        if (distance < 0.45) { // 0.45 adalah batas wajar (threshold)
+                            clearInterval(scanIntervalRef.current); 
+                            setIsScanning(false); 
+                            isDetectingRef.current = false; 
+                            setScanMessage('Wajah Cocok! Memproses absensi...');
+                            handleAbsensi(); 
+                        } else {
+                            // Jika beda orang, berikan peringatan dan JANGAN proses absen!
+                            setScanMessage('⚠️ Wajah tidak cocok dengan akun ini!');
+                            isDetectingRef.current = false; 
+                        }
+                    } else {
+                        // Jaga-jaga jika memori wajah gagal dimuat dari DB
+                        setScanMessage('Data wajah tidak ditemukan di server.');
+                        isDetectingRef.current = false;
+                    }
+                } 
               } else {
                 isDetectingRef.current = false; 
               }
@@ -198,7 +226,11 @@ export default function Dashboard() {
         body: JSON.stringify({ userId: user.id, face_descriptor: JSON.stringify(Array.from(descriptor)) })
       });
       const result = await res.json();
-      if (res.ok) { alert("📸 BERHASIL! Wajah Anda tersimpan."); setHasRegisteredFace(true); } 
+      if (res.ok) { 
+          alert("📸 BERHASIL! Wajah Anda tersimpan."); 
+          setHasRegisteredFace(true); 
+          setSavedDescriptor(new Float32Array(descriptor)); // Update memori wajah di frontend
+      } 
       else alert("Gagal: " + result.message);
     } catch (error) { alert("Kesalahan database."); } 
     finally { setProcessing(false); setScanMode(''); }
@@ -262,7 +294,19 @@ export default function Dashboard() {
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
-          if (data.user?.face_descriptor) setHasRegisteredFace(true);
+          
+          // 🌟 PERBAIKAN: Menyimpan data vektor wajah saat login agar bisa dicocokkan
+          if (data.user?.face_descriptor) {
+             setHasRegisteredFace(true);
+             try {
+                // Ubah string JSON dari database menjadi format Float32Array untuk AI
+                const parsedArr = JSON.parse(data.user.face_descriptor);
+                setSavedDescriptor(new Float32Array(parsedArr));
+             } catch (err) {
+                console.error("Gagal membaca memori wajah", err);
+             }
+          }
+          
           fetchNotif(data.user.id);
         } else router.push('/login'); 
       } catch (error) { router.push('/login'); } 
@@ -503,7 +547,7 @@ export default function Dashboard() {
                       <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalHadirSemua}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 relative overflow-hidden group hover:-translate-y-1 hover:shadow-md transition-all duration-300">
-                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CheckCircle size={60} className="textemerald-500 dark:text-emerald-400 md:w-20 md:h-20"/></div>
+                      <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><CheckCircle size={60} className="text-emerald-500 dark:text-emerald-400 md:w-20 md:h-20"/></div>
                       <h3 className="text-gray-500 dark:text-gray-400 text-xs md:text-sm font-medium uppercase tracking-wider">Tepat Waktu</h3>
                       <p className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mt-1 md:mt-2">{totalTepatWaktu}</p>
                   </div>
@@ -594,7 +638,13 @@ export default function Dashboard() {
                                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                       <div className="w-[60%] h-[50%] md:w-56 md:h-72 border-2 md:border-4 border-white/60 border-dashed rounded-[40%] animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.5)]"></div>
                                   </div>
-                                  <div className="absolute bottom-4 md:bottom-6 bg-white/95 dark:bg-slate-800/95 px-4 md:px-5 py-2 rounded-full text-[10px] md:text-xs font-bold text-indigo-600 dark:text-indigo-400 z-10 flex items-center gap-2 shadow-lg backdrop-blur-sm border border-gray-200 dark:border-slate-600"><Loader2 className="animate-spin w-3 h-3 md:w-4 md:h-4"/> Memindai Wajah...</div>
+                                  
+                                  {/* 🌟 PERBAIKAN: Menampilkan Pesan Error di Overlay Kamera */}
+                                  <div className={`absolute bottom-4 md:bottom-6 bg-white/95 dark:bg-slate-800/95 px-4 md:px-5 py-2 rounded-full text-[10px] md:text-xs font-bold z-10 flex items-center gap-2 shadow-lg backdrop-blur-sm border border-gray-200 dark:border-slate-600 ${scanMessage.includes('tidak cocok') ? 'text-rose-600 dark:text-rose-400 border-rose-300' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                                      {!scanMessage.includes('tidak cocok') && <Loader2 className="animate-spin w-3 h-3 md:w-4 md:h-4"/>}
+                                      {scanMessage}
+                                  </div>
+
                                   <button onClick={() => { setIsScanning(false); setScanMode(''); if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); }} className="absolute top-3 right-3 md:top-4 md:right-4 bg-rose-500/90 hover:bg-rose-600 text-white text-[10px] md:text-xs px-3 md:px-4 py-1.5 md:py-2 rounded-full z-10 transition-colors backdrop-blur-sm shadow-md">Batal</button>
                               </div>
                           ) : (
@@ -618,15 +668,17 @@ export default function Dashboard() {
                                             if (!modelsLoaded) return alert("Memuat model AI, harap tunggu...");
                                             if (!locationRef.current?.lat) return alert("Sistem sedang mendeteksi lokasi (GPS) Anda, harap tunggu sebentar atau pastikan izin lokasi di browser sudah menyala.");
                                             
+                                            // 🌟 PERBAIKAN: Reset status saat mau absen
                                             setScanMode('absen'); 
                                             setIsScanning(true); 
+                                            setScanMessage('Memindai Wajah...');
                                         }} 
                                         disabled={processing} 
                                         className={`group relative w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 flex flex-col items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${!isCheckedIn ? 'bg-indigo-600 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-700' : 'bg-orange-500 border-orange-100 dark:border-orange-900/50 hover:bg-orange-600'}`}>
                                         {processing ? <Loader2 className="animate-spin w-8 h-8 md:w-10 md:h-10"/> : <><div className="mb-1 md:mb-2 group-hover:-translate-y-1 transition-transform">{!isCheckedIn ? <MapPin className="w-6 h-6 md:w-8 md:h-8"/> : <LogOut className="w-6 h-6 md:w-8 md:h-8"/>}</div>{!isCheckedIn ? 'MASUK' : 'PULANG'}</>}
                                     </button>
                                   ) : (
-                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat model AI, harap tunggu..."); else { setScanMode('register'); setIsScanning(true); } }} className="w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 bg-indigo-500 border-indigo-100 dark:border-indigo-900/50 text-white font-bold flex flex-col items-center justify-center shadow-xl transition-all hover:scale-105 hover:bg-indigo-600 group">
+                                    <button onClick={() => { if (!modelsLoaded) alert("Memuat model AI, harap tunggu..."); else { setScanMode('register'); setIsScanning(true); setScanMessage('Memindai Wajah...'); } }} className="w-36 h-36 md:w-48 md:h-48 rounded-full border-[6px] md:border-8 bg-indigo-500 border-indigo-100 dark:border-indigo-900/50 text-white font-bold flex flex-col items-center justify-center shadow-xl transition-all hover:scale-105 hover:bg-indigo-600 group">
                                         <ScanFace className="w-8 h-8 md:w-10 md:h-10 mb-1 md:mb-2 group-hover:rotate-12 transition-transform"/> <span className="text-xs md:text-sm">DAFTAR WAJAH</span>
                                     </button>
                                   )}
